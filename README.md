@@ -94,7 +94,7 @@ NovelArchiveLauncher.exe
 
 ```toml
 [archive]
-root = "E:\\xiaoshou"
+root = "E:\\xiaoshuo"
 max_bytes = "50GB"
 manifest_name = ".novel_manifest.json"
 ```

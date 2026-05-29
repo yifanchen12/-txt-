@@ -166,7 +166,7 @@ def load_config(path: Path) -> AppConfig:
 
     return AppConfig(
         archive=ArchiveConfig(
-            root=Path(archive.get("root", r"E:\xiaoshou")),
+            root=Path(archive.get("root", r"E:\xiaoshuo")),
             max_bytes=parse_size(archive.get("max_bytes", "50GB")),
             manifest_name=archive.get("manifest_name", ".novel_manifest.json"),
         ),

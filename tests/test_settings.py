@@ -88,6 +88,24 @@ path = "catalog.json"
             self.assertEqual(config.filters.allowed_genres, ["玄幻", "都市"])
             self.assertEqual(load_config(config_path).filters.category_preset, "custom")
 
+    def test_load_config_accepts_utf8_bom(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                """
+[archive]
+root = "E:\\\\xiaoshuo"
+max_bytes = "1GB"
+manifest_name = ".novel_manifest.json"
+""".strip()
+                + "\n",
+                encoding="utf-8-sig",
+            )
+
+            config = load_config(config_path)
+
+            self.assertEqual(config.archive.max_bytes, 1024**3)
+
 
 if __name__ == "__main__":
     unittest.main()

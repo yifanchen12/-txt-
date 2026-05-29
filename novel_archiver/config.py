@@ -150,7 +150,7 @@ def load_config(path: Path) -> AppConfig:
     if not path.exists():
         raise FileNotFoundError(f"找不到配置文件: {path}")
     path = path.resolve()
-    raw = tomllib.loads(path.read_text(encoding="utf-8"))
+    raw = tomllib.loads(path.read_text(encoding="utf-8-sig"))
 
     archive = raw.get("archive", {})
     network = raw.get("network", {})
@@ -382,7 +382,7 @@ def save_user_settings(
     preset = normalize_category_preset(category_preset)
     genres = parse_genre_list(allowed_genres)
 
-    old_text = config_path.read_text(encoding="utf-8")
+    old_text = config_path.read_text(encoding="utf-8-sig")
     new_text = old_text
     new_text = update_toml_table_values(
         new_text,

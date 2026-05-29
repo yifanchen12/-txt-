@@ -1,0 +1,132 @@
+[archive]
+root = "E:\\xiaoshou"
+max_bytes = "50GB"
+manifest_name = ".novel_manifest.json"
+
+[network]
+user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36"
+request_delay_seconds = 2.0
+timeout_seconds = 90
+respect_robots_txt = false
+
+[filters]
+max_books_per_source = 100
+completed_statuses = ["完本", "已完结", "已完成", "completed", "complete", "finished"]
+# all = 全部类别；male = 只存男频；female = 只存女频；custom = 只存 allowed_genres 里的分类
+category_preset = "all"
+allowed_genres = []
+
+[completeness]
+min_bytes = 102400
+min_chapters = 20
+require_ending_signal = true
+
+[server]
+host = "127.0.0.1"
+port = 8765
+
+[launcher]
+open_browser = true
+auto_crawl_on_start = true
+
+[[ranking_sources]]
+name = "example_local_catalog"
+type = "json_catalog"
+enabled = false
+authorized = true
+license_note = "本地示例数据，不会下载真实作品"
+path = "samples/catalog.example.json"
+rank_type = "示例榜"
+
+[[ranking_sources]]
+name = "10000txt_home_recommend"
+type = "10000txt_ranking"
+enabled = true
+authorized = true
+license_note = "用户确认 https://www.10000txt.com/ 为合法授权小说下载来源"
+rank_type = "推荐榜"
+base_url = "https://www.10000txt.com/"
+urls = ["https://www.10000txt.com/"]
+book_link_selector = ".main-left a[href*='?id=']"
+
+[[ranking_sources]]
+name = "7shutxt_recommend"
+type = "7shutxt_ranking"
+enabled = true
+authorized = true
+license_note = "用户确认 https://www.7shutxt.com/ 为合法授权小说下载来源"
+rank_type = "奇书推荐榜"
+base_url = "https://www.7shutxt.com/"
+urls = ["https://www.7shutxt.com/txt-best.html", "https://www.7shutxt.com/txt.html"]
+book_link_selector = "a[href*='article-'], a[href*='ShowInfo.php']"
+
+# 通用 HTML 榜单示例。启用前请换成你有权抓取和下载的站点。
+[[ranking_sources]]
+name = "authorized_html_rank"
+type = "html_ranking"
+enabled = false
+authorized = true
+license_note = "示例：官方或授权来源"
+rank_type = "月票榜"
+page_url_template = "https://authorized.example/rank/monthly?page={page}"
+start_page = 1
+end_page = 3
+base_url = "https://authorized.example"
+book_link_selector = ".rank-list a.book"
+title_selector = "h1.book-title"
+author_selector = ".book-author"
+genre_selector = ".book-genre"
+status_selector = ".book-status"
+last_chapter_selector = ".last-chapter"
+download_link_selector = "a.download-txt"
+
+[[download_sources]]
+name = "direct_download_from_ranking"
+type = "direct_from_candidate"
+enabled = true
+authorized = true
+license_note = "仅使用榜单源已提供且确认授权的 download_url"
+ctfile_passcode = "10000txt"
+
+[[download_sources]]
+name = "10000txt"
+type = "10000txt_search"
+enabled = true
+authorized = true
+license_note = "用户确认 https://www.10000txt.com/ 为合法授权小说下载来源"
+base_url = "https://www.10000txt.com/"
+search_url = "https://www.10000txt.com/zb_system/cmd.php?act=search"
+ctfile_passcode = "10000txt"
+exact_title = true
+max_results = 30
+
+[[download_sources]]
+name = "7shutxt"
+type = "7shutxt_search"
+enabled = true
+authorized = true
+license_note = "用户确认 https://www.7shutxt.com/ 为合法授权小说下载来源"
+base_url = "https://www.7shutxt.com/"
+search_url = "https://www.7shutxt.com/e/search/index.php"
+exact_title = true
+max_results = 30
+
+# 当榜单没有直接下载链接时，可配置授权搜索源。
+[[download_sources]]
+name = "authorized_txt_search"
+type = "html_search"
+enabled = false
+authorized = true
+license_note = "示例：授权 TXT 来源"
+search_url_template = "https://authorized.example/search?q={title}+{author}"
+base_url = "https://authorized.example"
+result_link_selector = ".result a.title"
+title_selector = "h1.book-title"
+author_selector = ".book-author"
+genre_selector = ".book-genre"
+status_selector = ".book-status"
+last_chapter_selector = ".last-chapter"
+download_link_selector = "a.download-txt"
+# If this authorized source only exposes completed books and has no status text,
+# uncomment the next line.
+# assume_status = "完本"

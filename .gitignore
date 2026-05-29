@@ -1,0 +1,13 @@
+.venv/
+.vscode/
+__pycache__/
+*.pyc
+.pytest_cache/
+config.toml
+server.out.log
+server.err.log
+build/
+dist/
+logs/
+NovelArchiveLauncher.old-*.exe
+NovelArchiveLauncher.old-before-*.exe

@@ -1,23 +1,43 @@
 # 小说归档助手
 
-这是一个合规版小说归档爬虫框架：它可以抓取你配置的公开榜单/书目页面，并且只会从你确认有授权、公共版权或你自己拥有下载权的 TXT 来源下载小说。
+[English](README.en.md)
 
-它不会内置或协助抓取盗版 TXT 下载站点。你可以把合法来源写进 `config.toml`，程序会自动完成：
+小说归档助手是一个面向个人书库管理的 TXT 小说归档工具。它可以从用户明确确认有权使用的榜单、书目页和下载源中检索完本作品，按分类归档到本地目录，并通过容量上限、分类过滤、重复检测和完整性检查控制入库质量。
 
-- 抓取月票榜、推荐榜等配置的榜单页面
-- 只下载完本/已完结作品
-- 检测 TXT 是否疑似完整，避免只包含上架前章节的残缺文本
-- 按类别归档到 `E:\xiaoshou`
-- 文件名格式：`书名 - 作者.txt`
-- 归档总大小上限默认 `50GB`
-- 可在启动器或网页里直接填写存储位置、容量上限，并选择只入库男频、女频或自定义分类
-- 默认启用 10000txt、7shutxt、txt80 三个下载源的书目榜单，按设置持续入库直到容量上限
-- 记录 manifest，避免重复下载
-- 遵守 `robots.txt`，并带请求间隔
+> 合规说明：本项目不内置盗版来源，也不鼓励或协助下载无授权内容。请只配置你拥有下载权、备份权、公共版权使用权，或已获得站点授权的来源。
+
+## 功能概览
+
+- 自动滚榜：支持从多个榜单源持续扫描书目，直到达到配置的扫描数量或本地容量上限。
+- 多源下载：默认支持 `10000txt`、`7shutxt`、`txt80` 以及可配置的通用 HTML 下载源。
+- 本地归档：按小说分类创建目录，文件名格式为 `书名 - 作者.txt`。
+- 容量控制：可设置本地书库最大容量，例如 `50GB`、`800MB`。
+- 分类过滤：支持全部类别、只存男频、只存女频、自定义分类。
+- 完本榜信任策略：默认完本榜可跳过强制完本结尾信号检查，提高滚榜入库率。
+- 完整性保护：仍会拦截过小文件，以及结尾含有 `未完待续`、`连载中` 等明显未完结信号的文本。
+- 去重记录：使用 manifest 记录已入库书籍，避免重复下载。
+- 双入口使用：提供命令行模式、本地 Web 服务和 Windows 桌面启动器。
+
+## 项目结构
+
+```text
+novel_archiver/
+  archive.py        本地归档、容量检查、manifest 管理
+  cli.py            命令行入口
+  completeness.py   TXT 完整性检查
+  config.py         TOML 配置解析和设置写回
+  downloader.py     下载源解析和文件下载
+  server.py         本地 Web/API 服务
+  service.py        核心业务编排
+  sources.py        榜单源解析
+launcher.py         Windows 桌面启动器
+config.example.toml 默认配置模板
+tests/              单元测试
+```
 
 ## 安装
 
-建议使用 Python 3.11+。这台机器默认的 `python` 是 3.5，但已经安装了 `py -3.14`，所以建议用下面的命令。
+建议使用 Python 3.11 或更新版本。当前项目已在 Python 3.14 虚拟环境中验证。
 
 ```powershell
 py -3.14 -m venv .venv
@@ -26,146 +46,190 @@ python -m pip install -r requirements.txt
 Copy-Item config.example.toml config.toml
 ```
 
-编辑 `config.toml`，把你有权使用的榜单源和 TXT 下载源填进去。
+安装后请编辑 `config.toml`，确认存储路径、容量上限、分类策略和授权来源。
 
-## 运行
+## 快速运行
 
-先试跑，不写入文件：
+试跑模式不会写入文件，适合先确认来源、过滤条件和下载流程：
 
 ```powershell
 .\.venv\Scripts\python.exe -m novel_archiver --config config.toml --dry-run
 ```
 
-确认无误后正式下载：
+正式入库：
 
 ```powershell
 .\.venv\Scripts\python.exe -m novel_archiver --config config.toml
 ```
 
-启动本地检索/自动下载服务：
+限制本次扫描数量：
+
+```powershell
+.\.venv\Scripts\python.exe -m novel_archiver --config config.toml --limit 50
+```
+
+启动本地 Web 服务：
 
 ```powershell
 .\.venv\Scripts\python.exe -m novel_archiver --config config.toml --serve
 ```
 
-也可以直接双击：
-
-```text
-NovelArchiveLauncher.exe
-```
-
-EXE 会启动一个小窗口、打开网页，并按 `[launcher]` 配置自动检索榜单里本地缺失的完本小说。窗口里的“检索，缺失则自动下载”可以手动输入书名触发下载。
-
-窗口顶部可以直接修改存储位置、容量上限和入库范围。入库范围支持“全部类别”“只存男频”“只存女频”“自定义分类”；选择自定义时，多个分类用逗号分隔，例如 `玄幻，都市，科幻`。保存后会写入 `config.toml`；如果服务由当前启动器启动，设置会立即生效。
-
-默认地址：
+默认访问地址：
 
 ```text
 http://127.0.0.1:8765/
 ```
 
-接口：
+Windows 用户也可以直接双击：
 
-- `GET /api/search?title=书名&author=作者`：只检索本地库
-- `GET /api/ensure?title=书名&author=作者`：本地没有时自动从授权下载源搜索并下载
-- `POST /api/ensure`：JSON 请求体，字段为 `title`、`author`、`genre`
-- `GET /api/settings`：读取存储与分类设置
-- `POST /api/settings`：写入设置，JSON 字段为 `archive_root`、`max_size` 或 `max_bytes`、`category_preset`、`allowed_genres`
+```text
+NovelArchiveLauncher.exe
+```
 
-如果接口返回 `source_not_configured`，表示本地库没找到，而且 `config.toml` 里还没有启用真实的授权搜索下载源。需要把 `[[download_sources]]` 中 `type = "html_search"` 的来源改成真实授权站点，并设置 `enabled = true`。
+启动器会打开本地页面，并根据 `[launcher]` 配置自动开始滚榜。窗口顶部可以直接修改存储位置、容量上限和入库范围；保存后写入 `config.toml`，由当前启动器启动的服务会立即生效。
 
-已配置的 `10000txt` 来源默认使用精确书名匹配：搜索《斗罗大陆》不会自动下载《斗罗大陆V重生唐三》或同人作品。要允许模糊匹配，可在 `config.toml` 的 `[[download_sources]] name = "10000txt"` 下把 `exact_title = false`。
+## 核心配置
 
-默认配置里 `10000txt_ranking`、`7shutxt_ranking`、`txt80_ranking` 都设置了 `trust_completed = true`。这些榜单会被视为完本榜，程序仍会检查文件大小和明显的“未完待续/连载中”信号，但不会再强制要求 TXT 结尾出现“全书完/完结”等完本字样，也不会因为章节计数格式不匹配而跳过。
+### 归档目录和容量
 
-分类设置也可以直接写在 `config.toml`：
+```toml
+[archive]
+root = "E:\\xiaoshou"
+max_bytes = "50GB"
+manifest_name = ".novel_manifest.json"
+```
+
+- `root`：本地书库存储目录。
+- `max_bytes`：最大容量，支持 `B`、`KB`、`MB`、`GB`、`TB`。
+- `manifest_name`：去重记录文件名。
+
+### 分类策略
 
 ```toml
 [filters]
-category_preset = "all"  # all / male / female / custom
-allowed_genres = []      # category_preset = "custom" 时生效
+max_books_per_source = 10000
+completed_statuses = ["完本", "已完结", "已完成", "completed", "complete", "finished"]
+category_preset = "all"
+allowed_genres = []
 ```
 
-## 来源配置说明
+`category_preset` 可选值：
 
-每个来源必须显式设置：
+- `all`：全部类别。
+- `male`：只存男频。
+- `female`：只存女频。
+- `custom`：只存 `allowed_genres` 中列出的分类。
+
+自定义分类示例：
+
+```toml
+category_preset = "custom"
+allowed_genres = ["玄幻", "都市", "科幻"]
+```
+
+### 完整性策略
+
+```toml
+[completeness]
+min_bytes = 102400
+min_chapters = 20
+require_ending_signal = true
+```
+
+普通来源会综合检查文件大小、章节数、最后章节标题和结尾完本信号。默认完本榜来源设置了 `trust_completed = true`，因此会跳过章节数、最后章节标题和“必须出现完本字样”的要求，但仍会检查文件大小和明显未完结信号。
+
+### 启动器行为
+
+```toml
+[launcher]
+open_browser = true
+auto_crawl_on_start = true
+```
+
+- `open_browser`：启动桌面程序时自动打开本地页面。
+- `auto_crawl_on_start`：启动后自动滚榜入库。
+
+## 默认来源
+
+默认模板启用了三个书目榜单：
+
+- `10000txt_home_recommend`
+- `7shutxt_recommend`
+- `txt80_all_books`
+
+这些榜单均设置：
+
+```toml
+trust_completed = true
+```
+
+这表示程序默认信任它们为完本榜单，以提高自动入库效率。如果你希望更严格地检查 TXT 内容，可以将对应来源的 `trust_completed` 改为 `false`。
+
+每个来源必须声明授权：
 
 ```toml
 authorized = true
-license_note = "说明为什么这个来源可以被你下载，例如公共版权、站点授权、自己的备份等"
+license_note = "说明该来源为什么可被下载，例如公共版权、站点授权或个人备份"
 ```
 
-如果没有这些字段，程序会跳过来源。
+未声明授权信息的来源会被跳过。
 
-### JSON 书目源
+## API
 
-适合你自己维护一份榜单或从授权 API 导出的数据：
+本地服务提供以下接口：
 
-```toml
-[[ranking_sources]]
-name = "my_authorized_catalog"
-type = "json_catalog"
-enabled = true
-authorized = true
-license_note = "我拥有这些文本的下载权"
-path = "samples/catalog.example.json"
-rank_type = "月票榜"
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/search?title=书名&author=作者` | 只检索本地书库 |
+| `GET` | `/api/ensure?title=书名&author=作者` | 本地缺失时自动搜索并下载 |
+| `POST` | `/api/ensure` | JSON 请求体，字段为 `title`、`author`、`genre` |
+| `GET` | `/api/settings` | 读取存储和分类设置 |
+| `POST` | `/api/settings` | 写入存储和分类设置 |
+| `GET` | `/api/status` | 查看容量、路径和运行状态 |
+
+`POST /api/settings` 示例：
+
+```json
+{
+  "archive_root": "D:\\novels",
+  "max_size": "80GB",
+  "category_preset": "custom",
+  "allowed_genres": ["玄幻", "都市", "科幻"]
+}
 ```
 
-### 通用 HTML 榜单源
+## 常见状态
 
-适合结构比较稳定的授权网站：
+- `downloaded`：已成功下载并写入本地书库。
+- `dry_run`：试跑通过，未写入文件。
+- `exists`：本地已存在该书。
+- `full`：容量达到上限，滚榜停止。
+- `category_filtered`：不符合分类设置。
+- `source_not_configured`：未启用可用下载源。
+- `not_found`：已启用来源中未找到精确匹配。
+- `skipped`：被完整性或状态规则跳过。
 
-```toml
-[[ranking_sources]]
-name = "official_rank"
-type = "html_ranking"
-enabled = false
-authorized = true
-license_note = "官方授权下载页"
-rank_type = "推荐榜"
-page_url_template = "https://authorized.example/rank/recommend?page={page}"
-start_page = 1
-end_page = 3
-base_url = "https://authorized.example"
-book_link_selector = ".rank-list a.book"
-title_selector = "h1.book-title"
-author_selector = ".book-author"
-genre_selector = ".book-genre"
-status_selector = ".book-status"
-last_chapter_selector = ".last-chapter"
-download_link_selector = "a.download-txt"
+## 开发和测试
+
+运行单元测试：
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -v
 ```
 
-### 授权 TXT 搜索源
+编译检查：
 
-当榜单详情页没有直接 TXT 链接时，可以配置一个你有权使用的搜索源：
-
-```toml
-[[download_sources]]
-name = "authorized_txt_search"
-type = "html_search"
-enabled = false
-authorized = true
-license_note = "授权 TXT 下载站"
-search_url_template = "https://authorized.example/search?q={title}+{author}"
-base_url = "https://authorized.example"
-result_link_selector = ".result a.title"
-title_selector = "h1"
-author_selector = ".author"
-status_selector = ".status"
-download_link_selector = "a[href$='.txt']"
+```powershell
+.\.venv\Scripts\python.exe -m compileall novel_archiver launcher.py
 ```
 
-## 完整性检测
+重新打包 Windows 启动器：
 
-程序会综合以下信号判断：
+```powershell
+.\.venv\Scripts\python.exe -m PyInstaller --noconfirm NovelArchiveLauncher.spec
+Copy-Item dist\NovelArchiveLauncher.exe NovelArchiveLauncher.exe -Force
+```
 
-- 元数据状态必须是 `完本`、`已完结`、`completed` 等
-- TXT 结尾不能含有 `未完待续`、`连载中`、`持续更新` 等明显未完结信号
-- 尽量要求结尾出现 `全书完`、`大结局`、`完结`、`终章`、`尾声`、`完本感言` 等信号
-- 自动统计章节数，低于阈值会跳过
-- 如果来源提供 `expected_chapters` 或 `last_chapter_title`，会与 TXT 内容比对
-- `trust_completed = true` 的完本榜来源会跳过章节数、最后章节标题和“结尾必须出现完本字样”的要求
+## 许可和责任
 
-完整性检测不是魔法验真，只能降低残缺文本混进归档的概率。对重要来源，最好配置 `expected_chapters` 或最后章节标题。
+本项目仅提供本地归档自动化框架。用户需要自行确认来源的授权、版权和使用条款，并对配置的来源和下载行为负责。

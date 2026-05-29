@@ -11,6 +11,7 @@
 - 文件名格式：`书名 - 作者.txt`
 - 归档总大小上限默认 `50GB`
 - 可在启动器或网页里直接填写存储位置、容量上限，并选择只入库男频、女频或自定义分类
+- 默认启用 10000txt、7shutxt、txt80 三个下载源的书目榜单，按设置持续入库直到容量上限
 - 记录 manifest，避免重复下载
 - 遵守 `robots.txt`，并带请求间隔
 
@@ -74,6 +75,8 @@ http://127.0.0.1:8765/
 如果接口返回 `source_not_configured`，表示本地库没找到，而且 `config.toml` 里还没有启用真实的授权搜索下载源。需要把 `[[download_sources]]` 中 `type = "html_search"` 的来源改成真实授权站点，并设置 `enabled = true`。
 
 已配置的 `10000txt` 来源默认使用精确书名匹配：搜索《斗罗大陆》不会自动下载《斗罗大陆V重生唐三》或同人作品。要允许模糊匹配，可在 `config.toml` 的 `[[download_sources]] name = "10000txt"` 下把 `exact_title = false`。
+
+默认配置里 `10000txt_ranking`、`7shutxt_ranking`、`txt80_ranking` 都设置了 `trust_completed = true`。这些榜单会被视为完本榜，程序仍会检查文件大小和明显的“未完待续/连载中”信号，但不会再强制要求 TXT 结尾出现“全书完/完结”等完本字样，也不会因为章节计数格式不匹配而跳过。
 
 分类设置也可以直接写在 `config.toml`：
 
@@ -163,5 +166,6 @@ download_link_selector = "a[href$='.txt']"
 - 尽量要求结尾出现 `全书完`、`大结局`、`完结`、`终章`、`尾声`、`完本感言` 等信号
 - 自动统计章节数，低于阈值会跳过
 - 如果来源提供 `expected_chapters` 或 `last_chapter_title`，会与 TXT 内容比对
+- `trust_completed = true` 的完本榜来源会跳过章节数、最后章节标题和“结尾必须出现完本字样”的要求
 
 完整性检测不是魔法验真，只能降低残缺文本混进归档的概率。对重要来源，最好配置 `expected_chapters` 或最后章节标题。

@@ -10,7 +10,7 @@ timeout_seconds = 90
 respect_robots_txt = false
 
 [filters]
-max_books_per_source = 100
+max_books_per_source = 10000
 completed_statuses = ["完本", "已完结", "已完成", "completed", "complete", "finished"]
 # all = 全部类别；male = 只存男频；female = 只存女频；custom = 只存 allowed_genres 里的分类
 category_preset = "all"
@@ -19,6 +19,7 @@ allowed_genres = []
 [completeness]
 min_bytes = 102400
 min_chapters = 20
+# 默认完本榜和已配置下载源榜单会设置 trust_completed=true，不再强制 TXT 结尾出现完本信号。
 require_ending_signal = true
 
 [server]
@@ -44,10 +45,19 @@ type = "10000txt_ranking"
 enabled = true
 authorized = true
 license_note = "用户确认 https://www.10000txt.com/ 为合法授权小说下载来源"
-rank_type = "推荐榜"
+rank_type = "10000txt完本榜"
 base_url = "https://www.10000txt.com/"
-urls = ["https://www.10000txt.com/"]
+urls = [
+  "https://www.10000txt.com/",
+  "https://www.10000txt.com/?cate=1",
+  "https://www.10000txt.com/?cate=2",
+  "https://www.10000txt.com/?cate=3",
+  "https://www.10000txt.com/?cate=4",
+  "https://www.10000txt.com/?cate=5",
+  "https://www.10000txt.com/?cate=6",
+]
 book_link_selector = ".main-left a[href*='?id=']"
+trust_completed = true
 
 [[ranking_sources]]
 name = "7shutxt_recommend"
@@ -55,10 +65,47 @@ type = "7shutxt_ranking"
 enabled = true
 authorized = true
 license_note = "用户确认 https://www.7shutxt.com/ 为合法授权小说下载来源"
-rank_type = "奇书推荐榜"
+rank_type = "7shutxt完本榜"
 base_url = "https://www.7shutxt.com/"
 urls = ["https://www.7shutxt.com/txt-best.html", "https://www.7shutxt.com/txt.html"]
+url_templates = [
+  "https://www.7shutxt.com/txt.php?page={page}&type=new&cate=0&orderby=0",
+  "https://www.7shutxt.com/txt.php?page={page}&type=new&cate=1&orderby=0",
+  "https://www.7shutxt.com/txt.php?page={page}&type=new&cate=2&orderby=0",
+  "https://www.7shutxt.com/txt.php?page={page}&type=new&cate=0&orderby=2",
+  "https://www.7shutxt.com/txt.php?page={page}&type=new&cate=0&orderby=3",
+]
+start_page = 1
+end_page = 60
 book_link_selector = "a[href*='article-'], a[href*='ShowInfo.php']"
+trust_completed = true
+
+[[ranking_sources]]
+name = "txt80_all_books"
+type = "txt80_ranking"
+enabled = true
+authorized = true
+license_note = "用户确认 https://www.txt80.cc/ 为合法授权小说下载来源"
+rank_type = "txt80完本榜"
+base_url = "https://www.txt80.cc/"
+urls = [
+  "https://www.txt80.cc/all/",
+  "https://www.txt80.cc/hot/",
+  "https://www.txt80.cc/new/",
+  "https://www.txt80.cc/recommend100.html",
+  "https://www.txt80.cc/dushi/",
+  "https://www.txt80.cc/yanqing/",
+  "https://www.txt80.cc/xuanhuan/",
+  "https://www.txt80.cc/wuxia/",
+  "https://www.txt80.cc/wangyou/",
+  "https://www.txt80.cc/junshi/",
+  "https://www.txt80.cc/kehuan/",
+  "https://www.txt80.cc/danmei/",
+  "https://www.txt80.cc/wenxue/",
+  "https://www.txt80.cc/qita/",
+]
+book_link_selector = "a[href*='/txt'][href$='.html']"
+trust_completed = true
 
 # 通用 HTML 榜单示例。启用前请换成你有权抓取和下载的站点。
 [[ranking_sources]]
@@ -108,6 +155,17 @@ authorized = true
 license_note = "用户确认 https://www.7shutxt.com/ 为合法授权小说下载来源"
 base_url = "https://www.7shutxt.com/"
 search_url = "https://www.7shutxt.com/e/search/index.php"
+exact_title = true
+max_results = 30
+
+[[download_sources]]
+name = "txt80"
+type = "txt80_search"
+enabled = true
+authorized = true
+license_note = "用户确认 https://www.txt80.cc/ 为合法授权小说下载来源"
+base_url = "https://www.txt80.cc/"
+search_url = "https://www.txt80.cc/e/search/index.php"
 exact_title = true
 max_results = 30
 

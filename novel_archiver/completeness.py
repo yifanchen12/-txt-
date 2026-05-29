@@ -38,6 +38,8 @@ class CompletenessChecker:
         self.completed_statuses = {s.strip().lower() for s in filters.completed_statuses}
 
     def metadata_is_completed(self, book: BookCandidate) -> bool:
+        if book.trust_completed:
+            return True
         status = (book.status or "").strip().lower()
         return status in self.completed_statuses
 
@@ -52,6 +54,9 @@ class CompletenessChecker:
         if any(signal in normalized_tail for signal in INCOMPLETE_SIGNALS):
             return False, "结尾出现未完结/持续更新信号"
 
+        if book.trust_completed:
+            return True, "通过"
+
         chapter_count = len(CHAPTER_RE.findall(full_text_for_counts))
         if chapter_count < self.config.min_chapters:
             return False, f"章节数过少 {chapter_count}"
@@ -65,7 +70,7 @@ class CompletenessChecker:
                 return False, f"找不到最后章节标题：{book.last_chapter_title}"
 
         has_ending = any(signal in normalized_tail for signal in ENDING_SIGNALS)
-        if self.config.require_ending_signal and not has_ending:
+        if self.config.require_ending_signal and not book.trust_completed and not has_ending:
             return False, "结尾缺少完结信号"
 
         return True, "通过"
@@ -83,4 +88,3 @@ def decode_text(content: bytes) -> str:
 def normalize_text(text: str) -> str:
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     return re.sub(r"[ \t\u3000]+", "", text)
-

@@ -40,6 +40,7 @@ class DownloadResult:
                 "genre": self.book.genre,
                 "gender": self.book.gender,
                 "status": self.book.status,
+                "trust_completed": self.book.trust_completed,
                 "source_url": self.book.source_url,
                 "download_source": self.book.download_source,
             },
@@ -302,6 +303,12 @@ class NovelArchiverService:
                     downloaded += 1
                     source_counts["downloaded"] += 1
                     print(f"  {result.status}: {result.path}", flush=True)
+                elif result.status == "full":
+                    skipped += 1
+                    source_counts["other_skipped"] += 1
+                    print(f"  full: archive size limit reached, stopping crawl.", flush=True)
+                    print(source_progress_line(source_scanned, source_limit, source_counts), flush=True)
+                    return {"scanned": scanned, "downloaded": downloaded, "skipped": skipped}
                 else:
                     skipped += 1
                     if result.status == "not_found":

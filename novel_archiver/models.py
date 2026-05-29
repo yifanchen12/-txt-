@@ -18,6 +18,7 @@ class BookCandidate:
     download_url: str = ""
     expected_chapters: int | None = None
     last_chapter_title: str = ""
+    trust_completed: bool = False
     ranking_source: str = ""
     download_source: str = ""
     extra: dict[str, Any] = field(default_factory=dict)

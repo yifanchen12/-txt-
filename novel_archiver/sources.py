@@ -12,10 +12,14 @@ from .downloader import (
     HttpClient,
     clean_7shutxt_title,
     extract_7shutxt_label,
+    extract_txt80_label,
     find_7shutxt_txt_link,
+    find_txt80_txt_link,
     make_7shutxt_download_page_url,
     normalize_7shutxt_detail_url,
     normalize_7shutxt_genre,
+    clean_txt80_title,
+    normalize_txt80_genre,
 )
 from .models import BookCandidate
 from .utils import absolute_url, require_authorized_source, text_or_empty
@@ -40,6 +44,8 @@ def build_ranking_source(config: SourceConfig, http: HttpClient) -> RankingSourc
         return WanbenRankingSource(config, http)
     if config.type == "7shutxt_ranking":
         return QishuRankingSource(config, http)
+    if config.type == "txt80_ranking":
+        return Txt80RankingSource(config, http)
     raise ValueError(f"未知榜单源类型: {config.type}")
 
 
@@ -70,6 +76,7 @@ class JsonCatalogSource(RankingSource):
                 download_url=item.get("download_url", ""),
                 expected_chapters=item.get("expected_chapters"),
                 last_chapter_title=item.get("last_chapter_title", ""),
+                trust_completed=bool(item.get("trust_completed", values.get("trust_completed", False))),
                 extra={k: v for k, v in item.items() if k not in BOOK_FIELDS},
             )
 
@@ -126,6 +133,7 @@ class HtmlRankingSource(RankingSource):
             download_url=download_url,
             expected_chapters=parse_int(text_or_empty(soup, values.get("expected_chapters_selector"))),
             last_chapter_title=text_or_empty(soup, values.get("last_chapter_selector")),
+            trust_completed=bool(values.get("trust_completed", False)),
         )
 
 
@@ -249,6 +257,7 @@ class FanqieRankingSource(RankingSource):
                     detail_url=detail_url,
                     last_chapter_title=str(item.get("lastChapterTitle") or ""),
                     expected_chapters=parse_int(str(item.get("chapterTotal") or "")),
+                    trust_completed=trust_completed_for_source(self.config.values, default=completed_only),
                 )
             if completed_only and fanqie_status(book.status) != "已完结":
                 continue
@@ -279,6 +288,10 @@ class FanqieRankingSource(RankingSource):
             detail_url=detail_url,
             expected_chapters=parse_int(str(page.get("chapterTotal") or "")),
             last_chapter_title=str(page.get("lastChapterTitle") or fallback.get("lastChapterTitle") or ""),
+            trust_completed=trust_completed_for_source(
+                self.config.values,
+                default=bool(self.config.values.get("completed_only", False)),
+            ),
         )
 
 
@@ -337,6 +350,7 @@ class QidianCompletedRankingSource(RankingSource):
                             rank_type=values.get("rank_type", "起点完本分类榜"),
                             source_url=absolute_url(f"/book/{book_id}/", gender_base_url),
                             detail_url=absolute_url(f"/book/{book_id}/", gender_base_url),
+                            trust_completed=trust_completed_for_source(values, default=True),
                         )
                     page_props = (page_data.get("pageProps") or {}).get("pageData") or {}
                     if ((page_props.get("list") or {}).get("isLast")) or count == before:
@@ -386,19 +400,7 @@ class WanbenRankingSource(RankingSource):
 
     def _page_urls(self) -> Iterable[str]:
         values = self.config.values
-        urls = values.get("urls")
-        if urls:
-            for url in urls:
-                yield url
-            return
-        if values.get("ranking_url"):
-            yield values["ranking_url"]
-            return
-        template = values.get("page_url_template", "https://www.10000txt.com/")
-        start = int(values.get("start_page", 1))
-        end = int(values.get("end_page", start))
-        for page in range(start, end + 1):
-            yield template.format(page=page)
+        yield from configured_page_urls(values, default_urls=[values.get("ranking_url", "https://www.10000txt.com/")])
 
     def _parse_detail(self, detail_url: str, title: str, author: str, status: str) -> BookCandidate:
         values = self.config.values
@@ -428,6 +430,7 @@ class WanbenRankingSource(RankingSource):
             source_url=detail_url,
             detail_url=detail_url,
             download_url=download_url,
+            trust_completed=trust_completed_for_source(values, default=True),
         )
 
 
@@ -463,15 +466,7 @@ class QishuRankingSource(RankingSource):
 
     def _page_urls(self) -> Iterable[str]:
         values = self.config.values
-        urls = values.get("urls")
-        if urls:
-            for url in urls:
-                yield url
-            return
-        if values.get("ranking_url"):
-            yield values["ranking_url"]
-            return
-        yield "https://www.7shutxt.com/txt-best.html"
+        yield from configured_page_urls(values, default_urls=[values.get("ranking_url", "https://www.7shutxt.com/txt-best.html")])
 
     def _parse_detail(self, detail_url: str) -> BookCandidate:
         values = self.config.values
@@ -500,8 +495,122 @@ class QishuRankingSource(RankingSource):
             source_url=detail_url,
             detail_url=detail_url,
             download_url=download_url,
+            trust_completed=trust_completed_for_source(values, default=True),
             extra={"download_page_url": download_page_url},
         )
+
+
+class Txt80RankingSource(RankingSource):
+    def __init__(self, config: SourceConfig, http: HttpClient) -> None:
+        self.config = config
+        self.http = http
+
+    def iter_books(self, limit: int) -> Iterable[BookCandidate]:
+        count = 0
+        seen: set[str] = set()
+        values = self.config.values
+        selector = values.get("book_link_selector", "a[href*='/txt'][href$='.html']")
+        base_url = values.get("base_url", "https://www.txt80.cc/")
+
+        for page_url in self._page_urls():
+            soup = BeautifulSoup(self.http.get_text(page_url), "html.parser")
+            for link in soup.select(selector):
+                if count >= limit:
+                    return
+                href = link.get("href", "")
+                if not href or "/txt" not in href or not href.endswith(".html"):
+                    continue
+                detail_url = absolute_url(href, base_url)
+                if detail_url in seen:
+                    continue
+                seen.add(detail_url)
+                book = self._parse_detail(detail_url)
+                if not book.title:
+                    continue
+                count += 1
+                yield book
+
+    def _page_urls(self) -> Iterable[str]:
+        values = self.config.values
+        urls = values.get("urls")
+        if urls:
+            for url in urls:
+                yield url
+            return
+        yield from configured_page_urls(
+            values,
+            default_urls=[
+                "https://www.txt80.cc/all/",
+                "https://www.txt80.cc/hot/",
+                "https://www.txt80.cc/new/",
+                "https://www.txt80.cc/recommend100.html",
+            ],
+        )
+
+    def _parse_detail(self, detail_url: str) -> BookCandidate:
+        values = self.config.values
+        base_url = values.get("base_url", "https://www.txt80.cc/")
+        soup = BeautifulSoup(self.http.get_text(detail_url), "html.parser")
+        title = text_or_empty(soup, "dd.bt h2") or clean_txt80_title(text_or_empty(soup, "title"))
+        author = extract_txt80_label(soup, "小说作者") or "佚名"
+        status = extract_txt80_label(soup, "小说状态")
+        if "完结" in status or "完本" in status:
+            status = "已完结"
+        genre = normalize_txt80_genre(extract_txt80_label(soup, "小说分类"))
+
+        download_page_url = ""
+        for link in soup.select("a[href]"):
+            if "进入小说下载地址" in link.get_text(" ", strip=True):
+                download_page_url = absolute_url(link["href"], base_url)
+                break
+
+        download_url = ""
+        if download_page_url:
+            download_soup = BeautifulSoup(self.http.get_text(download_page_url), "html.parser")
+            download_url = find_txt80_txt_link(download_soup)
+            if download_url:
+                download_url = absolute_url(download_url, download_page_url)
+
+        return BookCandidate(
+            title=title,
+            author=author,
+            genre=genre or "未分类",
+            status=status or "完本",
+            rank_type=values.get("rank_type", "txt80"),
+            source_url=detail_url,
+            detail_url=detail_url,
+            download_url=download_url,
+            trust_completed=trust_completed_for_source(values, default=True),
+            extra={"download_page_url": download_page_url},
+        )
+
+
+def configured_page_urls(values: dict, default_urls: list[str]) -> Iterable[str]:
+    has_configured_urls = False
+    urls = values.get("urls")
+    if urls:
+        for url in urls:
+            has_configured_urls = True
+            yield url
+
+    templates = values.get("url_templates") or values.get("page_url_templates") or []
+    if values.get("page_url_template"):
+        templates = [values["page_url_template"], *templates]
+    if templates:
+        start = int(values.get("start_page", 1))
+        end = int(values.get("end_page", start))
+        for template in templates:
+            for page in range(start, end + 1):
+                has_configured_urls = True
+                yield template.format(page=page)
+
+    if not has_configured_urls:
+        for url in default_urls:
+            yield url
+
+
+def trust_completed_for_source(values: dict, default: bool = False) -> bool:
+    return bool(values.get("trust_completed", default))
 
 
 def parse_int(value: str) -> int | None:
@@ -645,4 +754,5 @@ BOOK_FIELDS = {
     "download_url",
     "expected_chapters",
     "last_chapter_title",
+    "trust_completed",
 }

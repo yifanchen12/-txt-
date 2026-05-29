@@ -233,6 +233,7 @@ class DownloadResolver:
                 download_url=absolute_url(download["href"], values.get("base_url") or detail_url),
                 expected_chapters=parse_optional_int(text_or_empty(detail, values.get("expected_chapters_selector"))) or book.expected_chapters,
                 last_chapter_title=text_or_empty(detail, values.get("last_chapter_selector")) or book.last_chapter_title,
+                trust_completed=book.trust_completed,
                 ranking_source=book.ranking_source,
                 extra=dict(book.extra),
             )
@@ -335,6 +336,7 @@ class DownloadResolver:
             download_url=download_url,
             expected_chapters=fallback.expected_chapters,
             last_chapter_title=fallback.last_chapter_title,
+            trust_completed=fallback.trust_completed,
             ranking_source=fallback.ranking_source,
             extra=dict(fallback.extra),
         )
@@ -427,6 +429,7 @@ class DownloadResolver:
             download_url=download_url,
             expected_chapters=fallback.expected_chapters,
             last_chapter_title=fallback.last_chapter_title,
+            trust_completed=fallback.trust_completed,
             ranking_source=fallback.ranking_source,
             extra={**dict(fallback.extra), "download_page_url": download_page_url},
         )
@@ -520,6 +523,7 @@ class DownloadResolver:
         download_url = find_txt80_txt_link(download_soup)
         if not download_url:
             return None
+        download_url = absolute_url(download_url, download_page_url)
 
         return BookCandidate(
             title=title,
@@ -533,6 +537,7 @@ class DownloadResolver:
             download_url=download_url,
             expected_chapters=fallback.expected_chapters,
             last_chapter_title=fallback.last_chapter_title,
+            trust_completed=fallback.trust_completed,
             ranking_source=fallback.ranking_source,
             extra={**dict(fallback.extra), "download_page_url": download_page_url},
         )

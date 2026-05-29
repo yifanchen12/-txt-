@@ -126,6 +126,7 @@ class ArchiveStore:
             "genre": book.genre,
             "gender": book.gender,
             "status": book.status,
+            "trust_completed": book.trust_completed,
             "ranking_source": book.ranking_source,
             "download_source": book.download_source,
             "metadata": asdict(book),

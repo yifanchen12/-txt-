@@ -4,7 +4,6 @@ import errno
 import json
 import queue
 import shutil
-import socket
 import sys
 import threading
 import time
@@ -58,15 +57,6 @@ def browser_url(host: str, port: int) -> str:
     return f"http://{display_host}:{port}/"
 
 
-def port_is_open(host: str, port: int) -> bool:
-    check_host = "127.0.0.1" if host in {"", "0.0.0.0", "::"} else host
-    try:
-        with socket.create_connection((check_host, port), timeout=1.5):
-            return True
-    except OSError:
-        return False
-
-
 def candidate_ports(start_port: int, attempts: int = SERVER_PORT_FALLBACK_ATTEMPTS) -> range:
     return range(start_port, start_port + attempts)
 
@@ -83,15 +73,20 @@ def build_httpd_with_port_fallback(
 ):
     last_error: OSError | None = None
     for candidate_port in candidate_ports(port, attempts):
-        if port_is_open(host, candidate_port):
-            last_error = OSError(errno.EADDRINUSE, f"Port {candidate_port} is already in use.")
-            continue
         try:
             return build_httpd(service, host, candidate_port), candidate_port
         except OSError as exc:
             if not is_retriable_bind_error(exc):
                 raise
             last_error = exc
+    try:
+        httpd = build_httpd(service, host, 0)
+    except OSError as exc:
+        if not is_retriable_bind_error(exc):
+            raise
+        last_error = exc
+    else:
+        return httpd, int(httpd.server_address[1])
     end_port = port + attempts - 1
     raise RuntimeError(f"Cannot start local server on {host}:{port}-{end_port}.") from last_error
 
@@ -245,11 +240,6 @@ class LauncherApp:
         self.allowed_genres_entry.insert(0, "，".join(self.config.filters.allowed_genres))
 
     def start_server_if_needed(self) -> None:
-        if port_is_open(self.host, self.port):
-            self.status.config(text=f"服务已在运行：{self.url}")
-            self.write_log(f"检测到端口 {self.port} 已有服务，直接复用。")
-            return
-
         self.service = NovelArchiverService(self.config, config_path=self.config_path)
         self.service.progress_callback = self.queue_download_progress
         httpd, actual_port = build_httpd_with_port_fallback(self.service, self.host, self.port)

@@ -259,8 +259,8 @@ def build_httpd(
     host: str | None = None,
     port: int | None = None,
 ) -> ThreadingHTTPServer:
-    bind_host = host or service.config.server.host
-    bind_port = port or service.config.server.port
+    bind_host = service.config.server.host if host is None else host
+    bind_port = service.config.server.port if port is None else port
     class Handler(NovelRequestHandler):
         pass
 
@@ -270,8 +270,8 @@ def build_httpd(
 
 def run_server(config_path: Path, host: str | None = None, port: int | None = None) -> None:
     service = NovelArchiverService.from_config_path(config_path)
-    bind_host = host or service.config.server.host
-    bind_port = port or service.config.server.port
+    bind_host = service.config.server.host if host is None else host
+    bind_port = service.config.server.port if port is None else port
     httpd = build_httpd(service, bind_host, bind_port)
     print(f"Novel archive server running at http://{bind_host}:{bind_port}/")
     httpd.serve_forever()

@@ -5,7 +5,7 @@ a = Analysis(
     ['launcher.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('config.example.toml', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

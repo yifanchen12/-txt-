@@ -29,12 +29,21 @@ def app_dir() -> Path:
     return Path(__file__).resolve().parent
 
 
+def bundled_resource_path(name: str) -> Path | None:
+    bundle_dir = getattr(sys, "_MEIPASS", "")
+    if not bundle_dir:
+        return None
+    candidate = Path(bundle_dir) / name
+    return candidate if candidate.exists() else None
+
+
 def ensure_config(base: Path) -> Path:
     config = base / "config.toml"
     if config.exists():
         return config
-    example = base / "config.example.toml"
-    if example.exists():
+    for example in (base / "config.example.toml", bundled_resource_path("config.example.toml")):
+        if example is None or not example.exists():
+            continue
         shutil.copyfile(example, config)
         return config
     raise FileNotFoundError("Missing config.toml next to the launcher.")

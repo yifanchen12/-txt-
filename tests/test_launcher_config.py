@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import errno
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from launcher import ensure_config
+from launcher import build_httpd_with_port_fallback, ensure_config
 
 
 class LauncherConfigTests(unittest.TestCase):
@@ -31,6 +32,25 @@ manifest_name = ".novel_manifest.json"
             self.assertEqual(config_path, base / "config.toml")
             self.assertTrue(config_path.exists())
             self.assertIn("E:\\\\xiaoshuo", config_path.read_text(encoding="utf-8"))
+
+    def test_server_start_falls_back_when_preferred_port_is_blocked(self) -> None:
+        started_ports: list[int] = []
+        fake_httpd = object()
+
+        def fake_build_httpd(service: object, host: str, port: int) -> object:
+            started_ports.append(port)
+            if port == 8765:
+                raise OSError(errno.EACCES, "Permission denied")
+            return fake_httpd
+
+        with patch("launcher.port_is_open", return_value=False), patch(
+            "launcher.build_httpd", side_effect=fake_build_httpd
+        ):
+            httpd, port = build_httpd_with_port_fallback(object(), "127.0.0.1", 8765, attempts=3)
+
+        self.assertIs(httpd, fake_httpd)
+        self.assertEqual(port, 8766)
+        self.assertEqual(started_ports, [8765, 8766])
 
 
 if __name__ == "__main__":

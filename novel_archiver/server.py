@@ -11,6 +11,10 @@ from .config import CATEGORY_PRESET_LABELS
 from .service import NovelArchiverService
 
 
+class NovelThreadingHTTPServer(ThreadingHTTPServer):
+    allow_reuse_address = True
+
+
 class NovelRequestHandler(BaseHTTPRequestHandler):
     service: NovelArchiverService
 
@@ -261,7 +265,7 @@ def build_httpd(
         pass
 
     Handler.service = service
-    return ThreadingHTTPServer((bind_host, bind_port), Handler)
+    return NovelThreadingHTTPServer((bind_host, bind_port), Handler)
 
 
 def run_server(config_path: Path, host: str | None = None, port: int | None = None) -> None:

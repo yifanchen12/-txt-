@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import json
 import queue
 import shutil
@@ -21,6 +22,9 @@ from novel_archiver.service import NovelArchiverService, format_bytes
 
 
 CATEGORY_LABEL_TO_VALUE = {label: value for value, label in CATEGORY_PRESET_LABELS.items()}
+SERVER_PORT_FALLBACK_ATTEMPTS = 25
+RETRIABLE_BIND_ERRNOS = {errno.EACCES, errno.EADDRINUSE}
+RETRIABLE_BIND_WINERRORS = {10013, 10048}
 
 
 def app_dir() -> Path:
@@ -61,6 +65,35 @@ def port_is_open(host: str, port: int) -> bool:
             return True
     except OSError:
         return False
+
+
+def candidate_ports(start_port: int, attempts: int = SERVER_PORT_FALLBACK_ATTEMPTS) -> range:
+    return range(start_port, start_port + attempts)
+
+
+def is_retriable_bind_error(exc: OSError) -> bool:
+    return exc.errno in RETRIABLE_BIND_ERRNOS or getattr(exc, "winerror", None) in RETRIABLE_BIND_WINERRORS
+
+
+def build_httpd_with_port_fallback(
+    service: NovelArchiverService,
+    host: str,
+    port: int,
+    attempts: int = SERVER_PORT_FALLBACK_ATTEMPTS,
+):
+    last_error: OSError | None = None
+    for candidate_port in candidate_ports(port, attempts):
+        if port_is_open(host, candidate_port):
+            last_error = OSError(errno.EADDRINUSE, f"Port {candidate_port} is already in use.")
+            continue
+        try:
+            return build_httpd(service, host, candidate_port), candidate_port
+        except OSError as exc:
+            if not is_retriable_bind_error(exc):
+                raise
+            last_error = exc
+    end_port = port + attempts - 1
+    raise RuntimeError(f"Cannot start local server on {host}:{port}-{end_port}.") from last_error
 
 
 class LauncherApp:
@@ -219,7 +252,12 @@ class LauncherApp:
 
         self.service = NovelArchiverService(self.config, config_path=self.config_path)
         self.service.progress_callback = self.queue_download_progress
-        httpd = build_httpd(self.service, self.host, self.port)
+        httpd, actual_port = build_httpd_with_port_fallback(self.service, self.host, self.port)
+        if actual_port != self.port:
+            original_port = self.port
+            self.port = actual_port
+            self.url = browser_url(self.host, self.port)
+            self.write_log(f"端口 {original_port} 不可用，已自动切换到 {self.port}。")
         thread = threading.Thread(target=httpd.serve_forever, daemon=True)
         thread.start()
         self.server_started_here = True

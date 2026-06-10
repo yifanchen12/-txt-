@@ -241,7 +241,6 @@ class NovelArchiverService:
         for source_config in self.config.ranking_sources:
             if not source_config.enabled:
                 continue
-            source = build_ranking_source(source_config, self.http)
             source_limit = self.config.filters.max_books_per_source
             source_scanned = 0
             source_counts = {
@@ -254,68 +253,75 @@ class NovelArchiverService:
             }
             print(f"\nRanking source: {source_config.name}", flush=True)
 
-            for book in source.iter_books(self.config.filters.max_books_per_source):
-                if limit is not None and scanned >= limit:
-                    break
-                scanned += 1
-                source_scanned += 1
+            try:
+                source = build_ranking_source(source_config, self.http)
+                for book in source.iter_books(self.config.filters.max_books_per_source):
+                    if limit is not None and scanned >= limit:
+                        break
+                    scanned += 1
+                    source_scanned += 1
 
-                book.ranking_source = source_config.name
-                print(
-                    f"  [{source_scanned}/{source_limit}] checking: {book.display_name} "
-                    f"[{book.status or 'unknown'}]",
-                    flush=True,
-                )
-                if not self._book_is_allowed(book):
-                    skipped += 1
-                    source_counts["other_skipped"] += 1
-                    print(f"  skip category: {book.display_name} [{book.genre or 'unknown'}]", flush=True)
-                    print(source_progress_line(source_scanned, source_limit, source_counts), flush=True)
-                    continue
-
-                if not self.checker.metadata_is_completed(book):
-                    skipped += 1
-                    source_counts["not_completed"] += 1
-                    print(f"  skip not completed: {book.display_name} [{book.status or 'unknown'}]", flush=True)
-                    print(source_progress_line(source_scanned, source_limit, source_counts), flush=True)
-                    continue
-
-                if self.store.is_downloaded(book):
-                    skipped += 1
-                    source_counts["exists"] += 1
-                    print(f"  exists: {book.display_name}", flush=True)
-                    print(source_progress_line(source_scanned, source_limit, source_counts), flush=True)
-                    continue
-
-                try:
-                    result = self.download_book(
-                        book,
-                        dry_run=dry_run,
-                        progress_callback=make_progress_printer(),
+                    book.ranking_source = source_config.name
+                    print(
+                        f"  [{source_scanned}/{source_limit}] checking: {book.display_name} "
+                        f"[{book.status or 'unknown'}]",
+                        flush=True,
                     )
-                except Exception as exc:
-                    skipped += 1
-                    source_counts["errors"] += 1
-                    print(f"  error: {book.display_name}; {exc}", flush=True)
-                    print(source_progress_line(source_scanned, source_limit, source_counts), flush=True)
-                    continue
-                if result.status in {"downloaded", "dry_run"}:
-                    downloaded += 1
-                    source_counts["downloaded"] += 1
-                    print(f"  {result.status}: {result.path}", flush=True)
-                elif result.status == "full":
-                    skipped += 1
-                    source_counts["other_skipped"] += 1
-                    print(f"  full: archive size limit reached, stopping crawl.", flush=True)
-                    print(source_progress_line(source_scanned, source_limit, source_counts), flush=True)
-                    return {"scanned": scanned, "downloaded": downloaded, "skipped": skipped}
-                else:
-                    skipped += 1
-                    if result.status == "not_found":
-                        source_counts["not_found"] += 1
-                    else:
+                    if not self._book_is_allowed(book):
+                        skipped += 1
                         source_counts["other_skipped"] += 1
-                    print(f"  {result.status}: {book.display_name}; {result.message}", flush=True)
+                        print(f"  skip category: {book.display_name} [{book.genre or 'unknown'}]", flush=True)
+                        print(source_progress_line(source_scanned, source_limit, source_counts), flush=True)
+                        continue
+
+                    if not self.checker.metadata_is_completed(book):
+                        skipped += 1
+                        source_counts["not_completed"] += 1
+                        print(f"  skip not completed: {book.display_name} [{book.status or 'unknown'}]", flush=True)
+                        print(source_progress_line(source_scanned, source_limit, source_counts), flush=True)
+                        continue
+
+                    if self.store.is_downloaded(book):
+                        skipped += 1
+                        source_counts["exists"] += 1
+                        print(f"  exists: {book.display_name}", flush=True)
+                        print(source_progress_line(source_scanned, source_limit, source_counts), flush=True)
+                        continue
+
+                    try:
+                        result = self.download_book(
+                            book,
+                            dry_run=dry_run,
+                            progress_callback=make_progress_printer(),
+                        )
+                    except Exception as exc:
+                        skipped += 1
+                        source_counts["errors"] += 1
+                        print(f"  error: {book.display_name}; {exc}", flush=True)
+                        print(source_progress_line(source_scanned, source_limit, source_counts), flush=True)
+                        continue
+                    if result.status in {"downloaded", "dry_run"}:
+                        downloaded += 1
+                        source_counts["downloaded"] += 1
+                        print(f"  {result.status}: {result.path}", flush=True)
+                    elif result.status == "full":
+                        skipped += 1
+                        source_counts["other_skipped"] += 1
+                        print(f"  full: archive size limit reached, stopping crawl.", flush=True)
+                        print(source_progress_line(source_scanned, source_limit, source_counts), flush=True)
+                        return {"scanned": scanned, "downloaded": downloaded, "skipped": skipped}
+                    else:
+                        skipped += 1
+                        if result.status == "not_found":
+                            source_counts["not_found"] += 1
+                        else:
+                            source_counts["other_skipped"] += 1
+                        print(f"  {result.status}: {book.display_name}; {result.message}", flush=True)
+                    print(source_progress_line(source_scanned, source_limit, source_counts), flush=True)
+            except Exception as exc:
+                skipped += 1
+                source_counts["errors"] += 1
+                print(f"  source error: {source_config.name}; {exc}", flush=True)
                 print(source_progress_line(source_scanned, source_limit, source_counts), flush=True)
 
             print(f"Source summary: {source_config.name}", flush=True)
@@ -338,7 +344,9 @@ class NovelArchiverService:
                 return True
             if source.type == "txt80_search":
                 return True
-            if source.type == "direct_from_candidate" and book.download_url:
+            if source.type == "direct_from_candidate" and (
+                book.download_url or str(book.extra.get("local_path") or "").strip()
+            ):
                 return True
         return False
 

@@ -47,6 +47,9 @@ class CompletenessChecker:
         if len(content) < self.config.min_bytes:
             return False, f"文件过小 {len(content)} bytes"
 
+        if book.trust_completed and is_non_text_book(book):
+            return True, "通过"
+
         text = decode_text(content)
         normalized_tail = normalize_text(text[-12000:])
         full_text_for_counts = normalize_text(text)
@@ -74,6 +77,13 @@ class CompletenessChecker:
             return False, "结尾缺少完结信号"
 
         return True, "通过"
+
+
+def is_non_text_book(book: BookCandidate) -> bool:
+    file_format = str(book.extra.get("file_format") or "").strip().lower().lstrip(".")
+    if not file_format:
+        return False
+    return file_format in {"pdf", "epub", "mobi", "azw", "azw3", "djvu", "fb2", "cbz", "cbr"}
 
 
 def decode_text(content: bytes) -> str:

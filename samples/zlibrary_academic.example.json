@@ -1,0 +1,24 @@
+[
+  {
+    "title": "Algorithms",
+    "authors": ["Robert Sedgewick", "Kevin Wayne"],
+    "subject": "Computer science; Algorithms",
+    "file_format": "pdf",
+    "local_path": "authorized-books/algorithms.pdf",
+    "isbn": "9780321573513",
+    "language": "English",
+    "publisher": "Addison-Wesley",
+    "year": "2011",
+    "license_note": "示例：仅填写你已经确认有合法下载/保存权的文件"
+  },
+  {
+    "title": "Introduction to Linear Algebra",
+    "author": "Gilbert Strang",
+    "category": "Mathematics",
+    "file_format": "epub",
+    "download_url": "https://authorized.example.invalid/downloads/linear-algebra.epub",
+    "source_url": "https://authorized.example.invalid/books/linear-algebra",
+    "language": "English",
+    "license_note": "示例：download_url 必须是你有权使用的授权直链"
+  }
+]

@@ -3,8 +3,10 @@ from __future__ import annotations
 import time
 import re
 import urllib.parse
+import urllib.request
 import urllib.robotparser
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable, Iterable, Optional
 
 import requests
@@ -50,6 +52,10 @@ class HttpClient:
         referer: str = "",
         progress_callback: Callable[[int, int | None], None] | None = None,
     ) -> bytes:
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme == "file":
+            return read_local_bytes(file_url_to_path(url), progress_callback)
+
         headers = {}
         if referer:
             headers["Referer"] = referer
@@ -165,6 +171,9 @@ class DownloadResolver:
             require_authorized_source(source)
             try:
                 if source.type == "direct_from_candidate":
+                    local_path = str(book.extra.get("local_path") or "").strip()
+                    if local_path:
+                        yield ResolvedDownload(Path(local_path).resolve().as_uri(), source.name, book)
                     if book.download_url:
                         url = self._resolve_download_url(book.download_url, source)
                         referer = str(book.extra.get("download_page_url") or book.download_url)
@@ -630,6 +639,37 @@ def parse_content_length(value: str | None) -> int | None:
     except ValueError:
         return None
     return number if number >= 0 else None
+
+
+def file_url_to_path(url: str) -> Path:
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme != "file":
+        return Path(url)
+    path = urllib.request.url2pathname(parsed.path)
+    if parsed.netloc:
+        path = f"//{parsed.netloc}{path}"
+    return Path(path)
+
+
+def read_local_bytes(
+    path: Path,
+    progress_callback: Callable[[int, int | None], None] | None = None,
+) -> bytes:
+    total = path.stat().st_size
+    if progress_callback:
+        progress_callback(0, total)
+    chunks: list[bytes] = []
+    downloaded = 0
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(128 * 1024)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            downloaded += len(chunk)
+            if progress_callback:
+                progress_callback(downloaded, total)
+    return b"".join(chunks)
 
 
 def parse_10000txt_heading(value: str) -> tuple[str, str, str]:

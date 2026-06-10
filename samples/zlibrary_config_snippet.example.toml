@@ -1,0 +1,24 @@
+# Z-Library 合法学术书目接入示例。
+# 这个接入只读取你已经合法导出的 JSON 书目；每条记录需要提供：
+# - local_path：本地已授权文件路径，或
+# - download_url：你有权使用的授权直链
+#
+# 不支持也不会尝试：抓取镜像页、绕过登录/验证码/访问限制、解析受保护下载按钮。
+
+[[ranking_sources]]
+name = "zlibrary_academic_catalog"
+type = "zlibrary_catalog"
+enabled = true
+authorized = true
+license_note = "我确认该 Z-Library 书目中的文件均为我有合法下载/保存权的学术书籍"
+path = "samples/zlibrary_academic.example.json"
+rank_type = "Z-Library学术书目"
+trust_completed = true
+default_genre = "学术-综合"
+
+[[download_sources]]
+name = "catalog_direct_file"
+type = "direct_from_candidate"
+enabled = true
+authorized = true
+license_note = "下载链接或本地文件路径来自已授权书目，不进行未授权发现或绕过"

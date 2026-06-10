@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import urllib.parse
 from pathlib import Path
 from typing import Iterable
 
@@ -34,6 +35,8 @@ def build_ranking_source(config: SourceConfig, http: HttpClient) -> RankingSourc
     require_authorized_source(config)
     if config.type == "json_catalog":
         return JsonCatalogSource(config, http)
+    if config.type == "zlibrary_catalog":
+        return ZLibraryCatalogSource(config, http)
     if config.type == "html_ranking":
         return HtmlRankingSource(config, http)
     if config.type == "fanqie_ranking":
@@ -79,6 +82,82 @@ class JsonCatalogSource(RankingSource):
                 trust_completed=bool(item.get("trust_completed", values.get("trust_completed", False))),
                 extra={k: v for k, v in item.items() if k not in BOOK_FIELDS},
             )
+
+
+class ZLibraryCatalogSource(RankingSource):
+    """Import a user-authorized Z-Library academic catalog export.
+
+    This source deliberately consumes records that already contain either a
+    direct authorized download URL or a local file path. It does not log in,
+    scrape mirrors, solve challenges, or discover download links from pages.
+    """
+
+    def __init__(self, config: SourceConfig, http: HttpClient) -> None:
+        self.config = config
+        self.http = http
+
+    def iter_books(self, limit: int) -> Iterable[BookCandidate]:
+        records = self._records()
+        count = 0
+        for item in records:
+            if count >= limit:
+                return
+            if not isinstance(item, dict):
+                continue
+            title = first_nonempty(item, "title", "name", "book_title")
+            if not title:
+                continue
+            count += 1
+            yield self._candidate(item, title)
+
+    def _records(self) -> list[dict]:
+        values = self.config.values
+        if values.get("url"):
+            raw = self.http.get_text(values["url"])
+        else:
+            raw = Path(values["path"]).read_text(encoding="utf-8-sig")
+        data = json.loads(raw)
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            list_key = values.get("list_key")
+            if list_key and isinstance(data.get(list_key), list):
+                return data[list_key]
+            for key in ("books", "items", "results", "data"):
+                if isinstance(data.get(key), list):
+                    return data[key]
+        raise ValueError("zlibrary_catalog 需要 JSON 数组，或包含 books/items/results/data 数组的对象")
+
+    def _candidate(self, item: dict, title: str) -> BookCandidate:
+        values = self.config.values
+        author = normalize_author(first_value(item, "author", "authors", "creator", "creators")) or "佚名"
+        file_format = infer_file_format(item)
+        local_path = normalize_catalog_local_path(item, values)
+        download_url = first_nonempty(item, "download_url", "direct_download_url", "file_url")
+        source_url = first_nonempty(item, "source_url", "detail_url", "book_url", "url")
+        genre = academic_category(item, default=str(values.get("default_genre") or "学术-综合"))
+
+        return BookCandidate(
+            title=title,
+            author=author,
+            genre=genre,
+            status=str(item.get("status") or values.get("assume_status") or "已授权"),
+            rank_type=str(item.get("rank_type") or values.get("rank_type") or "Z-Library学术书目"),
+            source_url=source_url,
+            detail_url=first_nonempty(item, "detail_url", "book_url", "url") or source_url,
+            download_url=download_url,
+            trust_completed=bool(item.get("trust_completed", values.get("trust_completed", True))),
+            extra={
+                "source_kind": "zlibrary_catalog",
+                "local_path": local_path,
+                "file_format": file_format,
+                "isbn": first_nonempty(item, "isbn", "isbn10", "isbn13"),
+                "language": first_nonempty(item, "language", "lang"),
+                "publisher": first_nonempty(item, "publisher"),
+                "year": first_nonempty(item, "year", "published_year", "publication_year"),
+                "zlibrary_id": first_nonempty(item, "zlibrary_id", "id"),
+            },
+        )
 
 
 class HtmlRankingSource(RankingSource):
@@ -740,6 +819,101 @@ def parse_10000txt_heading(value: str) -> tuple[str, str, str]:
     if any(token in value for token in ("完结", "完本", "全本", "精校")):
         status = "完本"
     return title, author, status
+
+
+def first_value(item: dict, *keys: str) -> object:
+    for key in keys:
+        value = item.get(key)
+        if value not in (None, "", []):
+            return value
+    return ""
+
+
+def first_nonempty(item: dict, *keys: str) -> str:
+    value = first_value(item, *keys)
+    if isinstance(value, list):
+        parts = [normalize_author(part) for part in value]
+        return "，".join(part for part in parts if part)
+    if isinstance(value, dict):
+        return str(value.get("name") or value.get("title") or value.get("value") or "").strip()
+    return str(value or "").strip()
+
+
+def normalize_author(value: object) -> str:
+    if isinstance(value, list):
+        parts = [normalize_author(item) for item in value]
+        return "，".join(part for part in parts if part)
+    if isinstance(value, dict):
+        return str(value.get("name") or value.get("full_name") or value.get("value") or "").strip()
+    return str(value or "").strip()
+
+
+def normalize_catalog_local_path(item: dict, values: dict) -> str:
+    raw_path = first_nonempty(item, "local_path", "file_path", "path")
+    if not raw_path:
+        return ""
+    path = Path(raw_path).expanduser()
+    if path.is_absolute():
+        return str(path)
+    base = values.get("local_base_dir")
+    if not base and values.get("path"):
+        base = str(Path(values["path"]).parent)
+    if base:
+        return str((Path(base) / path).resolve())
+    return str(path)
+
+
+def infer_file_format(item: dict) -> str:
+    value = first_nonempty(item, "file_format", "format", "extension", "ext")
+    if value:
+        return value.strip().lower().lstrip(".")
+    local_path = first_nonempty(item, "local_path", "file_path", "path")
+    if local_path:
+        suffix = Path(local_path).suffix.lower().lstrip(".")
+        if suffix:
+            return suffix
+    download_url = first_nonempty(item, "download_url", "direct_download_url", "file_url")
+    if download_url:
+        suffix = Path(urllib.parse.urlparse(download_url).path).suffix.lower().lstrip(".")
+        if suffix:
+            return suffix
+    return ""
+
+
+def academic_category(item: dict, default: str = "学术-综合") -> str:
+    text = " ".join(
+        [
+            first_nonempty(item, "genre", "category", "subject", "discipline", "topic"),
+            first_nonempty(item, "subjects", "categories", "tags", "keywords"),
+        ]
+    ).lower()
+    if not text.strip():
+        return default
+
+    category_keywords = [
+        ("学术-计算机", ("computer", "programming", "software", "algorithm", "data structure", "人工智能", "机器学习", "计算机", "编程", "算法", "数据结构")),
+        ("学术-数学", ("mathematics", "math", "algebra", "calculus", "statistics", "数学", "代数", "微积分", "统计")),
+        ("学术-物理", ("physics", "mechanics", "quantum", "物理", "力学", "量子")),
+        ("学术-化学", ("chemistry", "chemical", "化学")),
+        ("学术-生物", ("biology", "biomedical", "生命科学", "生物")),
+        ("学术-医学", ("medicine", "medical", "clinical", "anatomy", "医学", "临床", "解剖")),
+        ("学术-工程", ("engineering", "electronics", "mechanical", "civil engineering", "工程", "电子", "机械", "土木")),
+        ("学术-经济管理", ("economics", "finance", "business", "management", "accounting", "经济", "金融", "管理", "会计")),
+        ("学术-法学", ("law", "legal", "jurisprudence", "法学", "法律")),
+        ("学术-教育", ("education", "pedagogy", "teaching", "教育", "教学")),
+        ("学术-心理学", ("psychology", "cognitive", "心理")),
+        ("学术-社会科学", ("sociology", "anthropology", "political science", "社会学", "人类学", "政治学", "社会科学")),
+        ("学术-历史", ("history", "archaeology", "历史", "考古")),
+        ("学术-哲学", ("philosophy", "ethics", "logic", "哲学", "伦理", "逻辑")),
+        ("学术-语言文学", ("linguistics", "literature", "language", "语言", "文学", "语言学")),
+        ("学术-艺术", ("art", "design", "music", "艺术", "设计", "音乐")),
+        ("学术-地理环境", ("geography", "earth", "environment", "climate", "地理", "环境", "气候", "地球科学")),
+        ("学术-农业", ("agriculture", "forestry", "农业", "林业")),
+    ]
+    for category, keywords in category_keywords:
+        if any(keyword in text for keyword in keywords):
+            return category
+    return default
 
 
 BOOK_FIELDS = {

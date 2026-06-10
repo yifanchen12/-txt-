@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import re
+import urllib.parse
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -109,7 +111,8 @@ class ArchiveStore:
 
     def target_path(self, book: BookCandidate) -> Path:
         genre = safe_filename(book.genre or "未分类")
-        filename = safe_filename(f"{book.title} - {book.author}.txt")
+        stem = safe_filename(f"{book.title} - {book.author}")
+        filename = f"{stem}{file_extension_for_book(book)}"
         return self.root / genre / filename
 
     def write_book(self, book: BookCandidate, content: bytes, dry_run: bool) -> Path:
@@ -129,7 +132,25 @@ class ArchiveStore:
             "trust_completed": book.trust_completed,
             "ranking_source": book.ranking_source,
             "download_source": book.download_source,
+            "file_format": book.extra.get("file_format", ""),
             "metadata": asdict(book),
         }
         self._save_manifest()
         return target
+
+
+def file_extension_for_book(book: BookCandidate) -> str:
+    candidates = [
+        str(book.extra.get("file_format") or "").strip(),
+        Path(str(book.extra.get("local_path") or "")).suffix,
+        Path(urllib.parse.urlparse(book.download_url).path).suffix,
+    ]
+    for value in candidates:
+        cleaned = value.lower().strip()
+        if not cleaned:
+            continue
+        if not cleaned.startswith("."):
+            cleaned = f".{cleaned}"
+        if re.fullmatch(r"\.[a-z0-9]{1,12}", cleaned):
+            return cleaned
+    return ".txt"

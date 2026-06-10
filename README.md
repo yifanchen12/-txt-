@@ -233,3 +233,5 @@ Copy-Item dist\NovelArchiveLauncher.exe NovelArchiveLauncher.exe -Force
 ## 许可和责任
 
 本项目仅提供本地归档自动化框架。用户需要自行确认来源的授权、版权和使用条款，并对配置的来源和下载行为负责。
+
+本项目采用 MIT License。版权声明见 [LICENSE](LICENSE)。

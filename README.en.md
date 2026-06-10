@@ -233,3 +233,5 @@ Copy-Item dist\NovelArchiveLauncher.exe NovelArchiveLauncher.exe -Force
 ## License and Responsibility
 
 This project is a local archiving automation framework. Users are responsible for verifying source authorization, copyright status, site terms, and the legality of their own download behavior.
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for the copyright notice.

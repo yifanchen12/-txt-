@@ -202,9 +202,18 @@ def infer_zlibrary_file_format(download_url: str, text: str, extra: dict[str, An
 def zlibrary_source_accepts_book(book: BookCandidate, values: dict[str, Any]) -> bool:
     if not bool(values.get("academic_only", True)):
         return True
+    genre = (book.genre or "").strip()
+    manual_lookup = (
+        not book.ranking_source
+        and not book.detail_url
+        and not book.download_url
+        and genre in {"", "未分类", "鏈垎绫?"}
+    )
+    if manual_lookup:
+        return True
     text = " ".join(
         [
-            book.genre,
+            genre,
             book.rank_type,
             book.ranking_source,
             str(book.extra.get("source_kind") or ""),

@@ -224,6 +224,8 @@ search_queries = ["高等数学", "Linear Algebra", "Machine Learning"]
 
 Successful downloads are counted in the manifest by source and date, so repeated runs on the same day will not exceed `daily_auto_download_limit`. Files are stored in academic category folders such as `学术-数学` or `学术-计算机`.
 
+For manual launcher searches such as `高等数学`, you do not need to enable `zlibrary_im_academic_daily`; prepare the cookie file and set `zlibrary_im.enabled = true` under `download_sources`. Being logged in inside Chrome does not log in the Python process automatically; the program only uses the cookies in `cookie_file`.
+
 For a more conservative offline workflow, use `zlibrary_catalog`: manually export a catalog of already authorized files or local paths, then let the archiver import them. See [samples/zlibrary_config_snippet.example.toml](samples/zlibrary_config_snippet.example.toml).
 
 ## API

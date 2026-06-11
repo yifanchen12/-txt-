@@ -164,6 +164,8 @@ search_queries = ["高等数学", "线性代数", "机器学习"]
 
 同时把 `download_sources` 中的 `zlibrary_im.enabled` 改为 `true`。程序会把成功下载数写入 manifest，同一天重复运行不会超过 `daily_auto_download_limit`。学术文件会按主题存入 `学术-数学`、`学术-计算机`、`学术-经济管理` 等目录。
 
+如果只是想在启动器里手动输入 `高等数学` 这类书名并下载，不需要开启 `zlibrary_im_academic_daily`；只需要准备 Cookie，并把 `download_sources` 里的 `zlibrary_im.enabled` 改为 `true`。浏览器已经登录并不代表程序已登录，程序只读取 `cookie_file` 中的登录 Cookie。
+
 离线或更保守的方式是使用 `zlibrary_catalog`：先手动导出你已授权下载的书目 JSON，记录本地文件路径或授权直链，再让程序从本地目录入库。示例见 [samples/zlibrary_config_snippet.example.toml](samples/zlibrary_config_snippet.example.toml)。
 
 ## 默认来源

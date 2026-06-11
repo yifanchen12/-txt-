@@ -17,7 +17,8 @@ from novel_archiver.config import (
 )
 from novel_archiver.service import NovelArchiverService
 from novel_archiver.sources import academic_category
-from novel_archiver.zlibrary import parse_zlibrary_detail_candidate, read_cookie_header
+from novel_archiver.models import BookCandidate
+from novel_archiver.zlibrary import parse_zlibrary_detail_candidate, read_cookie_header, zlibrary_source_accepts_book
 
 
 class ZLibraryCatalogTests(unittest.TestCase):
@@ -173,6 +174,13 @@ class ZLibraryCatalogTests(unittest.TestCase):
             )
 
             self.assertEqual(read_cookie_header(cookie_file), "remix_userid=123; remix_userkey=abc")
+
+    def test_zlibrary_search_accepts_manual_academic_lookup_without_genre(self) -> None:
+        manual = BookCandidate(title="高等数学", author="", genre="未分类")
+        ranking_novel = BookCandidate(title="高等数学", author="", genre="都市", ranking_source="10000txt")
+
+        self.assertTrue(zlibrary_source_accepts_book(manual, {"academic_only": True}))
+        self.assertFalse(zlibrary_source_accepts_book(ranking_novel, {"academic_only": True}))
 
 
 if __name__ == "__main__":

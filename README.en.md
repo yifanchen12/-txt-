@@ -9,10 +9,11 @@ Novel Archive Assistant is a local TXT novel archiving tool for personal library
 ## Features
 
 - Automated ranking crawl: scan configured book lists until the scan limit or archive size limit is reached.
-- Multiple download sources: built-in support for `10000txt`, `7shutxt`, `txt80`, and configurable generic HTML sources.
-- Local archiving: store books by category with the file name format `Title - Author.txt`.
+- Multiple download sources: built-in support for `10000txt`, `7shutxt`, `txt80`, configurable generic HTML sources, direct/local files, and an authorized Z-Library academic source.
+- Local archiving: store books by category with the file name format `Title - Author.extension`.
 - Storage limit: set the maximum archive size, such as `50GB` or `800MB`.
 - Category filtering: archive all categories, male-oriented categories, female-oriented categories, or a custom genre list.
+- Academic categories: authorized Z-Library academic files are stored under categories such as `学术-数学`, `学术-计算机`, and `学术-医学`.
 - Trusted completed lists: default completed ranking sources can skip strict ending-signal checks to improve intake rate.
 - Completeness safeguards: still blocks very small files and obvious unfinished-tail signals such as `未完待续` or `连载中`.
 - Duplicate tracking: manifest-based tracking prevents repeated downloads.
@@ -173,6 +174,57 @@ license_note = "Explain why this source may be downloaded, such as public-domain
 ```
 
 Sources without authorization metadata are skipped.
+
+## Authorized Z-Library Academic Source
+
+The template includes an opt-in configuration for `https://z-library.im/`, but it is disabled by default and does not participate in automatic library building. This is intentional: logged-in Z-Library accounts usually have daily download limits, and many files are PDF/EPUB academic books rather than TXT novels.
+
+Before using it:
+
+1. Open `https://z-library.im/` in your browser and log in with your authorized account.
+2. Export your login cookies in Netscape cookie-file format.
+3. Save the cookie file as `secrets/zlibrary.cookies.txt`.
+4. Keep `secrets/` private; it is ignored by `.gitignore`.
+
+Default configuration:
+
+```toml
+[[ranking_sources]]
+name = "zlibrary_im_academic_daily"
+type = "zlibrary_web"
+enabled = false
+authorized = true
+base_url = "https://z-library.im/"
+cookie_file = "secrets/zlibrary.cookies.txt"
+search_queries = ["高等数学"]
+daily_auto_download_limit = 0
+default_genre = "学术-综合"
+trust_completed = true
+academic_only = true
+
+[[download_sources]]
+name = "zlibrary_im"
+type = "zlibrary_web_search"
+enabled = false
+authorized = true
+base_url = "https://z-library.im/"
+cookie_file = "secrets/zlibrary.cookies.txt"
+default_genre = "学术-综合"
+trust_completed = true
+academic_only = true
+```
+
+To opt into daily academic intake, enable both blocks and set a daily quota:
+
+```toml
+enabled = true
+daily_auto_download_limit = 3
+search_queries = ["高等数学", "Linear Algebra", "Machine Learning"]
+```
+
+Successful downloads are counted in the manifest by source and date, so repeated runs on the same day will not exceed `daily_auto_download_limit`. Files are stored in academic category folders such as `学术-数学` or `学术-计算机`.
+
+For a more conservative offline workflow, use `zlibrary_catalog`: manually export a catalog of already authorized files or local paths, then let the archiver import them. See [samples/zlibrary_config_snippet.example.toml](samples/zlibrary_config_snippet.example.toml).
 
 ## API
 

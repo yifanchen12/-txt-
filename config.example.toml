@@ -127,6 +127,29 @@ status_selector = ".book-status"
 last_chapter_selector = ".last-chapter"
 download_link_selector = "a.download-txt"
 
+# Z-Library 授权学术源。默认不参与自动建库；首次使用前请在浏览器登录
+# https://z-library.im/，并把登录 Cookie 导出到 cookie_file 指定的位置。
+# 如需每日自动入库，把 enabled 改为 true，并把 daily_auto_download_limit
+# 设为每天允许下载的本数；PDF/EPUB 会按“学术-...”分类目录保存。
+[[ranking_sources]]
+name = "zlibrary_im_academic_daily"
+type = "zlibrary_web"
+enabled = false
+authorized = true
+license_note = "用户确认 https://z-library.im/ 为已获授权的学术资料下载源；仅使用本人已登录账号可访问的内容"
+base_url = "https://z-library.im/"
+cookie_file = "secrets/zlibrary.cookies.txt"
+rank_type = "Z-Library授权学术书目"
+search_queries = ["高等数学"]
+daily_auto_download_limit = 0
+default_genre = "学术-综合"
+trust_completed = true
+academic_only = true
+exact_title = true
+max_results = 10
+result_link_selector = "a[href*='/book/']"
+download_link_selector = "a[href*='/dl/'], a[href*='/download/'], a[href*='download']"
+
 [[download_sources]]
 name = "direct_download_from_ranking"
 type = "direct_from_candidate"
@@ -134,6 +157,22 @@ enabled = true
 authorized = true
 license_note = "仅使用榜单源已提供且确认授权的 download_url"
 ctfile_passcode = "10000txt"
+
+[[download_sources]]
+name = "zlibrary_im"
+type = "zlibrary_web_search"
+enabled = false
+authorized = true
+license_note = "用户确认 https://z-library.im/ 为已获授权的学术资料下载源；需要先登录并提供 Cookie"
+base_url = "https://z-library.im/"
+cookie_file = "secrets/zlibrary.cookies.txt"
+default_genre = "学术-综合"
+trust_completed = true
+academic_only = true
+exact_title = true
+max_results = 10
+result_link_selector = "a[href*='/book/']"
+download_link_selector = "a[href*='/dl/'], a[href*='/download/'], a[href*='download']"
 
 [[download_sources]]
 name = "10000txt"

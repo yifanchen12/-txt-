@@ -1,24 +1,42 @@
-# Z-Library 合法学术书目接入示例。
-# 这个接入只读取你已经合法导出的 JSON 书目；每条记录需要提供：
-# - local_path：本地已授权文件路径，或
-# - download_url：你有权使用的授权直链
+# Z-Library authorized academic integration example.
+# First log in to https://z-library.im/ in your browser, then export the login
+# cookies to the Netscape-format file configured below. Keep this file private.
 #
-# 不支持也不会尝试：抓取镜像页、绕过登录/验证码/访问限制、解析受保护下载按钮。
+# By default this source is disabled and does not participate in automatic
+# library building. To opt in, set both blocks to enabled = true and set
+# daily_auto_download_limit to the number of academic books allowed per day.
 
 [[ranking_sources]]
-name = "zlibrary_academic_catalog"
-type = "zlibrary_catalog"
-enabled = true
+name = "zlibrary_im_academic_daily"
+type = "zlibrary_web"
+enabled = false
 authorized = true
-license_note = "我确认该 Z-Library 书目中的文件均为我有合法下载/保存权的学术书籍"
-path = "samples/zlibrary_academic.example.json"
-rank_type = "Z-Library学术书目"
-trust_completed = true
+license_note = "User confirms https://z-library.im/ is an authorized academic source for their logged-in account"
+base_url = "https://z-library.im/"
+cookie_file = "secrets/zlibrary.cookies.txt"
+rank_type = "Z-Library authorized academic catalog"
+search_queries = ["高等数学"]
+daily_auto_download_limit = 0
 default_genre = "学术-综合"
+trust_completed = true
+academic_only = true
+exact_title = true
+max_results = 10
+result_link_selector = "a[href*='/book/']"
+download_link_selector = "a[href*='/dl/'], a[href*='/download/'], a[href*='download']"
 
 [[download_sources]]
-name = "catalog_direct_file"
-type = "direct_from_candidate"
-enabled = true
+name = "zlibrary_im"
+type = "zlibrary_web_search"
+enabled = false
 authorized = true
-license_note = "下载链接或本地文件路径来自已授权书目，不进行未授权发现或绕过"
+license_note = "User confirms https://z-library.im/ is authorized and requires a logged-in cookie"
+base_url = "https://z-library.im/"
+cookie_file = "secrets/zlibrary.cookies.txt"
+default_genre = "学术-综合"
+trust_completed = true
+academic_only = true
+exact_title = true
+max_results = 10
+result_link_selector = "a[href*='/book/']"
+download_link_selector = "a[href*='/dl/'], a[href*='/download/'], a[href*='download']"

@@ -15,6 +15,13 @@ from bs4 import BeautifulSoup
 from .config import NetworkConfig, SourceConfig
 from .models import BookCandidate
 from .utils import absolute_url, require_authorized_source, text_or_empty
+from .zlibrary import (
+    iter_zlibrary_result_urls,
+    parse_zlibrary_detail_candidate,
+    zlibrary_request_headers,
+    zlibrary_search_url,
+    zlibrary_source_accepts_book,
+)
 
 
 class DownloadBlockedError(RuntimeError):
@@ -31,6 +38,7 @@ class ResolvedDownload:
     source_name: str
     book: BookCandidate
     referer: str = ""
+    headers: dict[str, str] | None = None
 
 
 class HttpClient:
@@ -41,8 +49,8 @@ class HttpClient:
         self._last_request_at = 0.0
         self._robots: dict[str, urllib.robotparser.RobotFileParser] = {}
 
-    def get_text(self, url: str) -> str:
-        response = self._get(url)
+    def get_text(self, url: str, headers: dict[str, str] | None = None) -> str:
+        response = self._get(url, headers=headers)
         response.encoding = response.apparent_encoding or response.encoding
         return response.text
 
@@ -50,19 +58,20 @@ class HttpClient:
         self,
         url: str,
         referer: str = "",
+        headers: dict[str, str] | None = None,
         progress_callback: Callable[[int, int | None], None] | None = None,
     ) -> bytes:
         parsed = urllib.parse.urlparse(url)
         if parsed.scheme == "file":
             return read_local_bytes(file_url_to_path(url), progress_callback)
 
-        headers = {}
+        request_headers = dict(headers or {})
         if referer:
-            headers["Referer"] = referer
+            request_headers["Referer"] = referer
         if not progress_callback:
-            return self._get(url, headers=headers).content
+            return self._get(url, headers=request_headers).content
 
-        response = self._get(url, headers=headers, stream=True)
+        response = self._get(url, headers=request_headers, stream=True)
         total = parse_content_length(response.headers.get("content-length"))
         chunks: list[bytes] = []
         downloaded = 0
@@ -194,12 +203,59 @@ class DownloadResolver:
                     result = self._resolve_txt80_search(source, book)
                     if result:
                         yield result
+                elif source.type == "zlibrary_web_search":
+                    result = self._resolve_zlibrary_web_search(source, book)
+                    if result:
+                        yield result
                 else:
                     raise ValueError(f"未知下载源类型: {source.type}")
             except ValueError:
                 raise
             except Exception:
                 continue
+
+    def _resolve_zlibrary_web_search(
+        self,
+        source: SourceConfig,
+        book: BookCandidate,
+    ) -> Optional[ResolvedDownload]:
+        values = source.values
+        if not zlibrary_source_accepts_book(book, values):
+            return None
+
+        headers = zlibrary_request_headers(values)
+        base_url = str(values.get("base_url") or "https://z-library.im/")
+        detail_urls: list[str] = []
+        if book.detail_url and same_site(book.detail_url, base_url):
+            detail_urls.append(book.detail_url)
+        if not detail_urls:
+            search_url = zlibrary_search_url(values, book.title)
+            html = self.http.get_text(search_url, headers=headers)
+            detail_urls.extend(iter_zlibrary_result_urls(html, search_url, values))
+
+        exact_title = bool(values.get("exact_title", True))
+        max_results = int(values.get("max_results", 10) or 10)
+        seen: set[str] = set()
+        for detail_url in detail_urls[:max_results]:
+            if detail_url in seen:
+                continue
+            seen.add(detail_url)
+            html = self.http.get_text(detail_url, headers=headers)
+            resolved_book = parse_zlibrary_detail_candidate(html, detail_url, values, fallback=book)
+            if exact_title and normalize_match(resolved_book.title) != normalize_match(book.title):
+                continue
+            if book.author and resolved_book.author and normalize_match(book.author) != normalize_match(resolved_book.author):
+                continue
+            if not resolved_book.download_url:
+                continue
+            return ResolvedDownload(
+                self._resolve_download_url(resolved_book.download_url, source),
+                source.name,
+                resolved_book,
+                referer=detail_url,
+                headers=headers,
+            )
+        return None
 
     def _resolve_html_search(
         self,
@@ -624,6 +680,12 @@ class DownloadResolver:
 
 def normalize_match(value: str) -> str:
     return "".join(value.lower().split())
+
+
+def same_site(url: str, base_url: str) -> bool:
+    parsed_url = urllib.parse.urlparse(url)
+    parsed_base = urllib.parse.urlparse(base_url)
+    return parsed_url.netloc.lower() == parsed_base.netloc.lower()
 
 
 def parse_optional_int(value: str) -> int | None:

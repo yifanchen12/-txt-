@@ -180,6 +180,7 @@ class NovelArchiverService:
                 content = self.http.get_bytes(
                     resolved.url,
                     referer=resolved.referer,
+                    headers=resolved.headers,
                     progress_callback=self._make_progress_callback(
                         resolved_book,
                         resolved.source_name,
@@ -242,6 +243,20 @@ class NovelArchiverService:
             if not source_config.enabled:
                 continue
             source_limit = self.config.filters.max_books_per_source
+            daily_limit = self._daily_auto_download_limit(source_config)
+            daily_downloaded = 0
+            if daily_limit is not None:
+                already_downloaded = self.store.daily_download_count(source_config.name)
+                remaining_daily = max(daily_limit - already_downloaded, 0)
+                if remaining_daily <= 0:
+                    print(
+                        f"\nRanking source: {source_config.name}\n"
+                        f"  daily limit reached: {already_downloaded}/{daily_limit}",
+                        flush=True,
+                    )
+                    continue
+            else:
+                remaining_daily = None
             source_scanned = 0
             source_counts = {
                 "downloaded": 0,
@@ -257,6 +272,8 @@ class NovelArchiverService:
                 source = build_ranking_source(source_config, self.http)
                 for book in source.iter_books(self.config.filters.max_books_per_source):
                     if limit is not None and scanned >= limit:
+                        break
+                    if remaining_daily is not None and daily_downloaded >= remaining_daily:
                         break
                     scanned += 1
                     source_scanned += 1
@@ -302,6 +319,7 @@ class NovelArchiverService:
                         continue
                     if result.status in {"downloaded", "dry_run"}:
                         downloaded += 1
+                        daily_downloaded += 1
                         source_counts["downloaded"] += 1
                         print(f"  {result.status}: {result.path}", flush=True)
                     elif result.status == "full":
@@ -332,6 +350,12 @@ class NovelArchiverService:
 
         return {"scanned": scanned, "downloaded": downloaded, "skipped": skipped}
 
+    @staticmethod
+    def _daily_auto_download_limit(source_config) -> int | None:
+        if "daily_auto_download_limit" not in source_config.values:
+            return None
+        return max(0, int(source_config.values.get("daily_auto_download_limit") or 0))
+
     def _has_searchable_download_source(self, book: BookCandidate) -> bool:
         for source in self.config.download_sources:
             if not source.enabled:
@@ -343,6 +367,8 @@ class NovelArchiverService:
             if source.type == "7shutxt_search":
                 return True
             if source.type == "txt80_search":
+                return True
+            if source.type == "zlibrary_web_search":
                 return True
             if source.type == "direct_from_candidate" and (
                 book.download_url or str(book.extra.get("local_path") or "").strip()

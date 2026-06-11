@@ -210,10 +210,11 @@ def parse_sources(items: list[dict[str, Any]], group_name: str, base_dir: Path) 
         authorized = bool(item.get("authorized", False))
         license_note = str(item.get("license_note", "")).strip()
         values = dict(item)
-        if values.get("path"):
-            source_path = Path(values["path"])
-            if not source_path.is_absolute():
-                values["path"] = str(base_dir / source_path)
+        for path_key in ("path", "cookie_file", "local_base_dir"):
+            if values.get(path_key):
+                source_path = Path(values[path_key])
+                if not source_path.is_absolute():
+                    values[path_key] = str(base_dir / source_path)
         for key in ("name", "type", "enabled", "authorized", "license_note"):
             values.pop(key, None)
         sources.append(

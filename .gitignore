@@ -9,5 +9,6 @@ server.err.log
 build/
 dist/
 logs/
+secrets/
 NovelArchiveLauncher.old-*.exe
 NovelArchiveLauncher.old-before-*.exe

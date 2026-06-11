@@ -24,6 +24,14 @@ from .downloader import (
 )
 from .models import BookCandidate
 from .utils import absolute_url, require_authorized_source, text_or_empty
+from .zlibrary import (
+    academic_category as zlibrary_academic_category,
+    iter_zlibrary_result_urls,
+    parse_zlibrary_detail_candidate,
+    zlibrary_request_headers,
+    zlibrary_search_queries,
+    zlibrary_search_url,
+)
 
 
 class RankingSource:
@@ -37,6 +45,8 @@ def build_ranking_source(config: SourceConfig, http: HttpClient) -> RankingSourc
         return JsonCatalogSource(config, http)
     if config.type == "zlibrary_catalog":
         return ZLibraryCatalogSource(config, http)
+    if config.type == "zlibrary_web":
+        return ZLibraryWebSource(config, http)
     if config.type == "html_ranking":
         return HtmlRankingSource(config, http)
     if config.type == "fanqie_ranking":
@@ -158,6 +168,46 @@ class ZLibraryCatalogSource(RankingSource):
                 "zlibrary_id": first_nonempty(item, "zlibrary_id", "id"),
             },
         )
+
+
+class ZLibraryWebSource(RankingSource):
+    """Search a user-authorized logged-in Z-Library web session for academic books.
+
+    The source is designed for low-volume, opt-in academic intake. If
+    daily_auto_download_limit is absent or set to 0, it yields nothing so the
+    source cannot consume account quota during automatic crawls by accident.
+    """
+
+    def __init__(self, config: SourceConfig, http: HttpClient) -> None:
+        self.config = config
+        self.http = http
+
+    def iter_books(self, limit: int) -> Iterable[BookCandidate]:
+        values = self.config.values
+        daily_limit = int(values.get("daily_auto_download_limit", 0) or 0)
+        if daily_limit <= 0:
+            return
+        headers = zlibrary_request_headers(values)
+        queries = zlibrary_search_queries(values)
+        count = 0
+        seen: set[str] = set()
+        for query in queries:
+            if count >= limit:
+                return
+            search_url = zlibrary_search_url(values, query)
+            html = self.http.get_text(search_url, headers=headers)
+            for detail_url in iter_zlibrary_result_urls(html, search_url, values):
+                if count >= limit:
+                    return
+                if detail_url in seen:
+                    continue
+                seen.add(detail_url)
+                detail_html = self.http.get_text(detail_url, headers=headers)
+                candidate = parse_zlibrary_detail_candidate(detail_html, detail_url, values)
+                if not candidate.title:
+                    continue
+                count += 1
+                yield candidate
 
 
 class HtmlRankingSource(RankingSource):
@@ -930,3 +980,6 @@ BOOK_FIELDS = {
     "last_chapter_title",
     "trust_completed",
 }
+
+
+academic_category = zlibrary_academic_category

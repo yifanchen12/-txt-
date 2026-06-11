@@ -4,6 +4,7 @@ import json
 import re
 import urllib.parse
 from dataclasses import asdict
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +50,10 @@ class ArchiveStore:
             return False
         path = Path(record.get("path", ""))
         return path.exists() and path.stat().st_size == record.get("bytes")
+
+    def daily_download_count(self, source_name: str, day: date | None = None) -> int:
+        today = (day or date.today()).isoformat()
+        return int(self.manifest.get("daily_downloads", {}).get(today, {}).get(source_name, 0) or 0)
 
     def find(self, title: str, author: str = "") -> list[dict[str, Any]]:
         title_key = normalize_key(title)
@@ -135,8 +140,21 @@ class ArchiveStore:
             "file_format": book.extra.get("file_format", ""),
             "metadata": asdict(book),
         }
+        self._record_daily_download(book)
         self._save_manifest()
         return target
+
+    def _record_daily_download(self, book: BookCandidate) -> None:
+        source_name = book.ranking_source or book.download_source
+        if not source_name:
+            return
+        today = date.today().isoformat()
+        daily = self.manifest.setdefault("daily_downloads", {})
+        for day in list(daily):
+            if day != today:
+                daily.pop(day, None)
+        by_source = daily.setdefault(today, {})
+        by_source[source_name] = int(by_source.get(source_name, 0) or 0) + 1
 
 
 def file_extension_for_book(book: BookCandidate) -> str:

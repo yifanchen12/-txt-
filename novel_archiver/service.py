@@ -370,6 +370,8 @@ class NovelArchiverService:
                 return True
             if source.type == "zlibrary_web_search":
                 return True
+            if source.type == "chapter_scraper":
+                return True
             if source.type == "direct_from_candidate" and (
                 book.download_url or str(book.extra.get("local_path") or "").strip()
             ):

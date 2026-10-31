@@ -207,6 +207,10 @@ class DownloadResolver:
                     result = self._resolve_zlibrary_web_search(source, book)
                     if result:
                         yield result
+                elif source.type == "chapter_scraper":
+                    result = self._resolve_chapter_scraper(source, book)
+                    if result:
+                        yield result
                 else:
                     raise ValueError(f"未知下载源类型: {source.type}")
             except ValueError:
@@ -309,6 +313,258 @@ class DownloadResolver:
                 referer=resolved_book.download_url,
             )
         return None
+
+    DEFAULT_SCRAPER_AD_KEYWORDS = (
+        "请收藏本站", "请收藏本", "请记住本站", "本站域名", "天才一秒", "一秒记住",
+        "最快更新", "最新网址", "手机阅读", "手机版", "无弹窗", "章节错误",
+        "点此举报", "书友群", "q群", "qq群", "群号", "笔趣阁", "顶点小说",
+        "笔神", "笔仙", "首发", "永久网址", "注册会员", "加入书签",
+        "点击下一页", "加入书架", "微信公众号",
+    )
+
+    COMPLETED_STATUSES = {"完本", "已完结", "已完成", "completed", "complete", "finished"}
+
+    def _resolve_chapter_scraper(
+        self,
+        source: SourceConfig,
+        book: BookCandidate,
+    ) -> Optional[ResolvedDownload]:
+        values = source.values
+        search_template = values.get("search_url_template") or ""
+        if not search_template:
+            return None
+        base_url = values.get("base_url") or ""
+        search_url = search_template.format(
+            title=urllib.parse.quote_plus(book.title),
+            author=urllib.parse.quote_plus(book.author or ""),
+        )
+        print(f"  scraper: 搜索 {search_url}")
+        try:
+            html = self.http.get_text(search_url)
+        except Exception as exc:
+            print(f"  scraper: 搜索失败 {exc}")
+            return None
+        soup = BeautifulSoup(html, "html.parser")
+        exact_title = bool(values.get("exact_title", True))
+        max_results = int(values.get("max_results", 30) or 30)
+        link_selector = values.get("result_link_selector") or "a[href*='/book/']"
+        want_title = normalize_match(book.title)
+        want_author = normalize_match(book.author or "")
+        seen: set[str] = set()
+        for link in soup.select(link_selector):
+            href = link.get("href")
+            if not href:
+                continue
+            detail_url = absolute_url(href, base_url or search_url)
+            if not detail_url.startswith(("http://", "https://")):
+                continue
+            if detail_url in seen:
+                continue
+            seen.add(detail_url)
+            if len(seen) > max_results:
+                break
+            try:
+                candidate = self._parse_chapter_scraper_detail(detail_url, values, book)
+                if candidate is None:
+                    continue
+                got_title = normalize_match(candidate.title)
+                if exact_title and got_title != want_title:
+                    print(f"  scraper: 标题不匹配 {candidate.title}")
+                    continue
+                if not exact_title and want_title not in got_title:
+                    continue
+                if want_author and candidate.author and (
+                    want_author not in normalize_match(candidate.author)
+                    and normalize_match(candidate.author) not in want_author
+                ):
+                    print(f"  scraper: 作者不匹配 {candidate.author}")
+                    continue
+            except Exception as exc:
+                print(f"  scraper: 详情页解析失败 {detail_url}: {exc}")
+                continue
+            file_url = self._scrape_chapter_book_to_file(candidate, source, values)
+            if not file_url:
+                continue
+            return ResolvedDownload(file_url, source.name, candidate, referer=candidate.detail_url)
+        return None
+
+    def _parse_chapter_scraper_detail(
+        self,
+        detail_url: str,
+        values: dict,
+        book: BookCandidate,
+    ) -> Optional[BookCandidate]:
+        html = self.http.get_text(detail_url)
+        soup = BeautifulSoup(html, "html.parser")
+        for tag in soup.find_all(["script", "style"]):
+            tag.decompose()
+        title = text_or_empty(soup, values.get("title_selector"))
+        author = text_or_empty(soup, values.get("author_selector"))
+        status = text_or_empty(soup, values.get("status_selector"))
+        genre = text_or_empty(soup, values.get("genre_selector"))
+        last_chapter = text_or_empty(soup, values.get("last_chapter_selector"))
+        blob = soup.get_text("\n")
+        if not title:
+            title = _regex_first_group(blob, values.get("detail_title_regex"))
+        if not author:
+            author = _regex_first_group(blob, values.get("detail_author_regex"))
+        if not status:
+            status = _regex_first_group(blob, values.get("detail_status_regex"))
+        if not genre:
+            genre = _regex_first_group(blob, values.get("detail_genre_regex"))
+        if not last_chapter:
+            last_chapter = _regex_first_group(blob, values.get("last_chapter_regex"))
+        status = status or values.get("assume_status") or ""
+        if not title:
+            return None
+        chapter_links = soup.select(
+            values.get("chapter_list_selector") or "ul.row a[href$='.html']"
+        )
+        chapter_count = len(
+            [a for a in chapter_links if (a.get("href") or "").endswith(".html")]
+        )
+        min_chapters = int(values.get("min_chapters", 20) or 20)
+        if chapter_count < min_chapters:
+            return None
+        return BookCandidate(
+            title=title or book.title,
+            author=author or book.author,
+            genre=genre or book.genre,
+            gender=book.gender,
+            status=status or book.status,
+            rank_type=book.rank_type,
+            source_url=detail_url,
+            detail_url=detail_url,
+            download_url=detail_url,
+            expected_chapters=chapter_count,
+            last_chapter_title=last_chapter or book.last_chapter_title,
+            trust_completed=bool(book.trust_completed) or (status in self.COMPLETED_STATUSES),
+            ranking_source=book.ranking_source,
+            extra=dict(book.extra),
+        )
+
+    def _scrape_chapter_book_to_file(
+        self,
+        book: BookCandidate,
+        source: SourceConfig,
+        values: dict,
+    ) -> Optional[str]:
+        cache_dir = Path(values.get("cache_dir") or "scraper_cache")
+        dir_for_source = (cache_dir / _safe_name(source.name)).resolve()
+        try:
+            dir_for_source.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            return None
+        target = dir_for_source / f"{book.identity}.txt"
+        if target.exists() and target.stat().st_size > 0:
+            print(f"  scraper: 缓存命中 {target.as_uri()}")
+            return target.as_uri()
+        content_selector = values.get("chapter_content_selector") or "article.font_max"
+        ad_keywords = [
+            str(k).lower()
+            for k in (values.get("skip_ad_keywords") or list(self.DEFAULT_SCRAPER_AD_KEYWORDS))
+        ]
+        page_marker = re.compile(r"^第\(\d+/\d+\)页")
+        try:
+            html = self.http.get_text(book.detail_url)
+        except Exception as exc:
+            print(f"  scraper: 详情页获取失败 {book.detail_url}: {exc}")
+            return None
+        soup = BeautifulSoup(html, "html.parser")
+        link_selector = values.get("chapter_list_selector") or "ul.row a[href$='.html']"
+        chapters: list[tuple[str, str]] = []
+        for a in soup.select(link_selector):
+            href = a.get("href")
+            if not href or not href.endswith(".html"):
+                continue
+            chapters.append(
+                (a.get_text(" ", strip=True) or f"第{len(chapters) + 1}章", absolute_url(href, book.detail_url))
+            )
+        if not chapters:
+            return None
+        max_failures = int(values.get("max_chapter_failures", 3) or 3)
+        failures = 0
+        parts = [f"《{book.title}》", f"作者：{book.author}", f"来源：{source.name} 章节抓取", ""]
+        total = len(chapters)
+        for index, (chapter_title, chapter_url) in enumerate(chapters, start=1):
+            try:
+                text = self._fetch_chapter_text(chapter_url, content_selector, ad_keywords, page_marker)
+            except Exception as exc:
+                failures += 1
+                print(f"  scraper: 章节抓取失败 [{index}/{total}] {chapter_title}: {exc}")
+                if failures > max_failures:
+                    print("  scraper: 连续失败过多，中止")
+                    return None
+                text = ""
+            if text:
+                failures = 0
+                parts.append(f"{chapter_title}\n\n{text}\n\n")
+            else:
+                parts.append(f"{chapter_title}\n\n（本章无正文）\n\n")
+            if index % 5 == 0 or index == total:
+                print(f"  scraper: 进度 {index}/{total} 章节")
+        content = "\n".join(parts)
+        try:
+            target.write_text(content, encoding="utf-8")
+        except OSError:
+            return None
+        print(f"  scraper: 已生成 {target.as_uri()} ({target.stat().st_size} bytes)")
+        return target.as_uri()
+
+    def _fetch_chapter_text(
+        self,
+        url: str,
+        content_selector: str,
+        ad_keywords: list[str],
+        page_marker: re.Pattern,
+    ) -> str:
+        html = self.http.get_text(url)
+        soup = BeautifulSoup(html, "html.parser")
+
+        def clean(node) -> list[str]:
+            if node is None:
+                return []
+            lines: list[str] = []
+            for line in node.get_text("\n").split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                if page_marker.match(line):
+                    continue
+                low = line.lower()
+                if any(keyword in low for keyword in ad_keywords):
+                    continue
+                lines.append(line)
+            return lines
+
+        node = soup.select_one(content_selector) if content_selector else soup
+        if node is None:
+            return ""
+        segments = ["\n".join(clean(node))]
+        path = urllib.parse.urlparse(url).path
+        base_match = re.match(r"^(?P<base>.+?)(?:_(?P<n>\d+))?\.html$", path)
+        if not base_match:
+            return segments[0]
+        n = int(base_match.group("n") or 1)
+        while True:
+            next_name = f"{base_match.group('base')}_{n + 1}.html"
+            has_anchor = any(
+                (a.get("href") or "").replace("\\", "/").endswith(f"/{next_name}")
+                or (a.get("href") or "").replace("\\", "/") == next_name
+                for a in soup.find_all("a")
+            )
+            if not has_anchor:
+                break
+            next_url = absolute_url(next_name, url)
+            next_html = self.http.get_text(next_url)
+            next_soup = BeautifulSoup(next_html, "html.parser")
+            next_node = next_soup.select_one(content_selector) if content_selector else next_soup
+            if next_node is None:
+                break
+            segments.append("\n".join(clean(next_node)))
+            n += 1
+            soup = next_soup
+        return "\n".join(segments)
 
     def _resolve_10000txt_search(
         self,
@@ -680,6 +936,23 @@ class DownloadResolver:
 
 def normalize_match(value: str) -> str:
     return "".join(value.lower().split())
+
+
+def _regex_first_group(text: str, pattern: str | None) -> str:
+    if not pattern or not text:
+        return ""
+    try:
+        match = re.search(pattern, text)
+    except re.error:
+        return ""
+    if not match:
+        return ""
+    group = match.group(1) if match.lastindex else match.group(0)
+    return (group or "").strip()
+
+
+def _safe_name(value: str) -> str:
+    return re.sub(r"[^0-9A-Za-z_\-\u4e00-\u9fff]+", "_", value).strip("_") or "source"
 
 
 def same_site(url: str, base_url: str) -> bool:

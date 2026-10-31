@@ -244,6 +244,8 @@ class HtmlRankingSource(RankingSource):
     def _parse_detail(self, detail_url: str) -> BookCandidate:
         values = self.config.values
         soup = BeautifulSoup(self.http.get_text(detail_url), "html.parser")
+        for tag in soup.find_all(["script", "style"]):
+            tag.decompose()
         download_url = ""
         download_selector = values.get("download_link_selector")
         if download_selector:
@@ -251,17 +253,39 @@ class HtmlRankingSource(RankingSource):
             if link and link.get("href"):
                 download_url = absolute_url(link["href"], values.get("base_url") or detail_url)
 
+        blob = soup.get_text("\n")
+
+        def regex_first(pattern: str | None) -> str:
+            if not pattern or not blob:
+                return ""
+            try:
+                match = re.search(pattern, blob)
+            except re.error:
+                return ""
+            if not match:
+                return ""
+            group = match.group(1) if match.lastindex else match.group(0)
+            return (group or "").strip()
+
         return BookCandidate(
-            title=text_or_empty(soup, values.get("title_selector")) or "未知书名",
-            author=text_or_empty(soup, values.get("author_selector")) or "佚名",
-            genre=text_or_empty(soup, values.get("genre_selector")) or "未分类",
-            status=text_or_empty(soup, values.get("status_selector")),
+            title=text_or_empty(soup, values.get("title_selector"))
+            or regex_first(values.get("title_regex"))
+            or "未知书名",
+            author=text_or_empty(soup, values.get("author_selector"))
+            or regex_first(values.get("author_regex"))
+            or "佚名",
+            genre=text_or_empty(soup, values.get("genre_selector"))
+            or regex_first(values.get("genre_regex"))
+            or "未分类",
+            status=text_or_empty(soup, values.get("status_selector"))
+            or regex_first(values.get("status_regex")),
             rank_type=values.get("rank_type", ""),
             source_url=detail_url,
             detail_url=detail_url,
             download_url=download_url,
             expected_chapters=parse_int(text_or_empty(soup, values.get("expected_chapters_selector"))),
-            last_chapter_title=text_or_empty(soup, values.get("last_chapter_selector")),
+            last_chapter_title=text_or_empty(soup, values.get("last_chapter_selector"))
+            or regex_first(values.get("last_chapter_regex")),
             trust_completed=bool(values.get("trust_completed", False)),
         )
 

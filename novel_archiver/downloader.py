@@ -84,11 +84,17 @@ class HttpClient:
             progress_callback(downloaded, total)
         return b"".join(chunks)
 
+    def post_text(self, url: str, data: dict[str, str], headers: dict[str, str] | None = None) -> str:
+        response = self._get(url, headers=headers, data=data)
+        response.encoding = response.apparent_encoding or response.encoding
+        return response.text
+
     def _get(
         self,
         url: str,
         headers: dict[str, str] | None = None,
         stream: bool = False,
+        data: dict[str, str] | None = None,
     ) -> requests.Response:
         self._check_robots(url)
         last_error: Exception | None = None
@@ -98,12 +104,21 @@ class HttpClient:
             if elapsed < self.config.request_delay_seconds:
                 time.sleep(self.config.request_delay_seconds - elapsed)
             try:
-                response = self.session.get(
-                    url,
-                    timeout=max(self.config.timeout_seconds, 90),
-                    headers=headers or None,
-                    stream=stream,
-                )
+                if data is None:
+                    response = self.session.get(
+                        url,
+                        timeout=max(self.config.timeout_seconds, 90),
+                        headers=headers or None,
+                        stream=stream,
+                    )
+                else:
+                    response = self.session.post(
+                        url,
+                        data=data,
+                        timeout=max(self.config.timeout_seconds, 90),
+                        headers=headers or None,
+                        stream=stream,
+                    )
             except requests.RequestException as exc:
                 last_error = exc
                 if attempt < max_attempts - 1:
@@ -324,6 +339,29 @@ class DownloadResolver:
 
     COMPLETED_STATUSES = {"完本", "已完结", "已完成", "completed", "complete", "finished"}
 
+    @staticmethod
+    def _scraper_chapter_href_regex(values: dict) -> re.Pattern:
+        pattern = values.get("chapter_link_regex") or r"[.]html$"
+        try:
+            return re.compile(pattern)
+        except re.error:
+            return re.compile(r"[.]html$")
+
+    def _scraper_chapter_soup(self, detail_url: str, values: dict, soup: BeautifulSoup) -> BeautifulSoup:
+        """Some mirror sites keep the chapter catalog on a separate URL (e.g. kenshu's
+        /xiaoshuo/<id>/0/ page) instead of on the detail page. When catalog_url_suffix
+        is configured, fetch detail_url + suffix and use ITS link structure as the
+        chapter list for both counting and scraping."""
+        suffix = values.get("catalog_url_suffix") or ""
+        if not suffix:
+            return soup
+        catalog_url = detail_url.rstrip("/") + "/" + suffix.strip("/") + "/"
+        html = self.http.get_text(catalog_url)
+        catalog_soup = BeautifulSoup(html, "html.parser")
+        for tag in catalog_soup.find_all(["script", "style"]):
+            tag.decompose()
+        return catalog_soup
+
     def _resolve_chapter_scraper(
         self,
         source: SourceConfig,
@@ -334,13 +372,22 @@ class DownloadResolver:
         if not search_template:
             return None
         base_url = values.get("base_url") or ""
-        search_url = search_template.format(
-            title=urllib.parse.quote_plus(book.title),
-            author=urllib.parse.quote_plus(book.author or ""),
-        )
+        search_method = (values.get("search_method") or "get").lower()
+        if search_method == "post":
+            search_url = search_template
+            search_field = values.get("search_field") or "q"
+        else:
+            search_url = search_template.format(
+                title=urllib.parse.quote_plus(book.title),
+                author=urllib.parse.quote_plus(book.author or ""),
+            )
+            search_field = ""
         print(f"  scraper: 搜索 {search_url}")
         try:
-            html = self.http.get_text(search_url)
+            if search_method == "post":
+                html = self.http.post_text(search_url, {search_field: book.title})
+            else:
+                html = self.http.get_text(search_url)
         except Exception as exc:
             print(f"  scraper: 搜索失败 {exc}")
             return None
@@ -417,11 +464,13 @@ class DownloadResolver:
         status = status or values.get("assume_status") or ""
         if not title:
             return None
-        chapter_links = soup.select(
+        chapter_soup = self._scraper_chapter_soup(detail_url, values, soup)
+        chapter_links = chapter_soup.select(
             values.get("chapter_list_selector") or "ul.row a[href$='.html']"
         )
+        href_regex = self._scraper_chapter_href_regex(values)
         chapter_count = len(
-            [a for a in chapter_links if (a.get("href") or "").endswith(".html")]
+            [a for a in chapter_links if href_regex.search(a.get("href") or "")]
         )
         min_chapters = int(values.get("min_chapters", 20) or 20)
         if chapter_count < min_chapters:
@@ -471,11 +520,13 @@ class DownloadResolver:
             print(f"  scraper: 详情页获取失败 {book.detail_url}: {exc}")
             return None
         soup = BeautifulSoup(html, "html.parser")
+        chapter_soup = self._scraper_chapter_soup(book.detail_url, values, soup)
         link_selector = values.get("chapter_list_selector") or "ul.row a[href$='.html']"
+        href_regex = self._scraper_chapter_href_regex(values)
         chapters: list[tuple[str, str]] = []
-        for a in soup.select(link_selector):
+        for a in chapter_soup.select(link_selector):
             href = a.get("href")
-            if not href or not href.endswith(".html"):
+            if not href or not href_regex.search(href):
                 continue
             chapters.append(
                 (a.get_text(" ", strip=True) or f"第{len(chapters) + 1}章", absolute_url(href, book.detail_url))

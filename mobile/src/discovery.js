@@ -12,6 +12,7 @@ export function matchesCategory(book,{channel='all',genre='all'}={}){
   const female=/言情|纯爱|耽美|百合|女频|女尊|青春|校园/.test(tag);
   const male=/玄幻|奇幻|武侠|仙侠|修真|都市|现实|历史|军事|科幻|末世|游戏|网游|竞技|悬疑|灵异|恐怖/.test(tag)&&!female;
   if(channel==='female'&&!female||channel==='male'&&!male)return false;
+  if(['modern','ancient','romance-fantasy'].includes(genre)&&!/言情|现言|古言|仙侠奇缘/.test(tag))return false;
   return genre==='all'||Boolean(CATEGORIES[channel]?.find(c=>c.id===genre)?.pattern?.test(tag));
 }
 export function parseDiscoveryPage(html,url,source){

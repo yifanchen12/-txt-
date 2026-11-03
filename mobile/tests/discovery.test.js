@@ -20,6 +20,7 @@ test('下一批追加并去重，失败重试不跳过原页',async()=>{
 test('男女频和细分类只依据明确题材，不按标题猜现代古代',()=>{
  assert.equal(matchesCategory({title:'穿越古代',genre:'言情'},{channel:'female',genre:'modern'}),false);
  assert.equal(matchesCategory({genre:'原创-言情-近代现代-爱情'},{channel:'female',genre:'modern'}),true);
+ assert.equal(matchesCategory({genre:'原创-纯爱-近代现代-爱情'},{channel:'female',genre:'modern'}),false);
  assert.equal(matchesCategory({genre:'原创-言情-架空历史-爱情'},{channel:'male',genre:'history'}),false);
  assert.equal(matchesCategory({genre:'仙侠'},{channel:'male',genre:'wuxia'}),true);
 });

@@ -21,4 +21,6 @@ test('占位封面正确转义，拒绝非网络 URL',()=>{
  const svg=decodeURIComponent(coverPlaceholder({title:'<script>"&',author:'A'}).split(',')[1]);
  assert.ok(!svg.includes('<script>'));assert.ok(svg.includes('&lt;'));assert.ok(svg.includes('&gt;'));
  assert.equal(webURL('javascript:alert(1)','https://example.com/'),'');
+ assert.equal(webURL('','https://example.com/book/1/'),'');
+ assert.equal(webURL('   ','https://example.com/book/1/'),'');
 });

@@ -6,7 +6,7 @@ export async function request(url,{method='GET',body,signal,timeout=18000}={}) {
   if (!webURL(url)) throw new Error('书源地址格式不正确');
   let bytes,headers,status;
   if (native) {
-    const r=await CapacitorHttp.request({url,method,data:body,headers:{'User-Agent':'Mozilla/5.0',...(body?{'Content-Type':'application/x-www-form-urlencoded'}:{})},responseType:'arraybuffer',connectTimeout:timeout,readTimeout:timeout});
+    const r=await CapacitorHttp.request({url,method,data:body,headers:{'User-Agent':'Mozilla/5.0','Referer':new URL(url).origin+'/',...(body?{'Content-Type':'application/x-www-form-urlencoded'}:{})},responseType:'arraybuffer',connectTimeout:timeout,readTimeout:timeout});
     status=r.status;headers=r.headers||{};
     if(typeof r.data!=='string')throw new Error('书源返回了不支持的数据');
     const raw=atob(r.data);bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));
@@ -23,6 +23,7 @@ export async function request(url,{method='GET',body,signal,timeout=18000}={}) {
     } finally {clearTimeout(timer);signal?.removeEventListener('abort',abort);}
   }
   assertNotAborted(signal);
+  if((status<200||status>=300)&&headers['x-shiye-error']==='network')throw new Error(decodeText(bytes).slice(0,160));
   if(status<200||status>=300)throw new Error(status===403?'书源暂时拒绝访问':`书源响应异常（${status}）`);
   return {bytes,headers};
 }

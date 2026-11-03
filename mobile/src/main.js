@@ -8,8 +8,8 @@ import {Reader} from './reader.js';
 const icons={book:'<path d="M3 4c4-1 6 0 9 2 3-2 5-3 9-2v15c-4-1-6 0-9 2-3-2-5-3-9-2Z"/><path d="M12 6v15"/>',search:'<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>',grid:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',shelf:'<path d="M3 21h18M5 4h4v14H5Zm8 0h4v14h-4Zm5 1 3-1 3 14-3 1Z"/>',download:'<path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4"/>',settings:'<path d="M3 6h18M3 12h18M3 18h18"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="9" cy="18" r="2"/>',arrow:'<path d="M4 12h16m-6-6 6 6-6 6"/>',sun:'<circle cx="12" cy="12" r="4"/><path d="M12 1v2m0 18v2M1 12h2m18 0h2M4 4l2 2m12 12 2 2M4 20l2-2M18 6l2-2"/>'};
 const icon=name=>`<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]||icons.book}</svg>`;
 const app=document.querySelector('#app');
-const state={route:'discover',platform:'all',ranks:{},library:[],recommendations:[],search:[],query:'',searching:false,searchStatus:'',jobs:new Map(),bookMap:new Map(),disabled:[],sort:'recent'};
-let searchController,rankController,rankLoading=false,toastTimer;
+const state={route:'discover',platform:'all',ranks:{},library:[],recommendations:[],search:[],query:'',searching:false,searchStatus:'',searchErrors:[],searchTotal:0,jobs:new Map(),bookMap:new Map(),disabled:[],sort:'recent'};
+let searchController,rankController,rankLoading=false,toastTimer,pendingRender=false;
 function toast(message){const el=document.querySelector('#toast');el.textContent=message;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),5000);}
 const report=e=>toast(e?.name==='QuotaExceededError'?'本机存储空间不足，请导出备份后清理书库。':e.message||String(e));
 function remember(b){state.bookMap.set(b.id||bookId(b),b);return b.id||bookId(b);}
@@ -17,10 +17,13 @@ function cover(b,cls=''){const id=remember(b);return `<img class="cover ${cls}" 
 function empty(title,body,action=''){return `<div class="empty"><div class="empty-icon">${icon('book')}</div><h3>${h(title)}</h3><p>${h(body)}</p>${action}</div>`;}
 function navigation(){return [['discover','grid','发现'],['rankings','book','排行榜'],['library','shelf','本地书架'],['downloads','download','下载']].map(([route,i,label])=>`<button data-route="${route}" class="nav-item ${state.route===route?'active':''}" ${state.route===route?'aria-current="page"':''}>${icon(i)}<span>${label}</span>${route==='downloads'&&[...state.jobs.values()].some(j=>j.status==='running')?'<i class="notification-dot"></i>':''}</button>`).join('');}
 function render(){
+  if(document.activeElement?.id==='search-input'){pendingRender=true;return;}
+  pendingRender=false;
   const focused=document.activeElement?.id,selection=focused==='search-input'?document.activeElement.selectionStart:null;
   app.innerHTML=`<header class="site-header"><div class="header-inner"><button class="brand" data-route="discover" aria-label="拾页首页"><span class="brand-mark">${icon('book')}</span><strong>拾页</strong><span class="brand-en">SHIYE</span></button><nav class="desktop-nav" aria-label="主导航">${navigation()}</nav><button class="header-settings" data-action="settings" aria-label="书源设置">${icon('settings')}</button></div></header><main id="main">${state.route==='discover'?discover():state.route==='rankings'?rankings():state.route==='library'?library():state.route==='downloads'?downloads():settings()}</main><footer class="site-footer"><span>拾页 · 故事随身，好书随行</span><a href="https://github.com/yifanchen12/-txt-/releases/latest" target="_blank" rel="noreferrer">下载手机应用 ↗</a></footer><nav class="mobile-nav" aria-label="手机导航">${navigation()}</nav><input id="import-txt" type="file" accept=".txt,text/plain" multiple hidden>`;
   app.querySelectorAll('[data-cover]').forEach(img=>{img.addEventListener('error',()=>{if(img.dataset.fallback)return;img.dataset.fallback='1';img.src=coverPlaceholder(state.bookMap.get(img.dataset.cover)||{});});});
   app.querySelector('#search-input')?.addEventListener('input',e=>state.query=e.target.value);
+  app.querySelector('#search-input')?.addEventListener('blur',()=>{if(pendingRender)queueMicrotask(render);});
   app.querySelector('#search-form')?.addEventListener('submit',e=>{e.preventDefault();runSearch();});
   app.querySelector('#import-txt')?.addEventListener('change',async e=>{for(const f of e.target.files)await importText(f);});
   if(focused==='search-input'){const input=app.querySelector('#search-input');input?.focus({preventScroll:true});if(selection!==null)input?.setSelectionRange(selection,selection);}
@@ -37,15 +40,19 @@ function rankings(){return `<section class="page-title"><div class="eyebrow">WHA
 function bookCard(b){const local=state.library.some(x=>x.id===b.id),platform=PLATFORMS[b.platform]?.name;return `<article class="book-card"><button class="cover-button" data-book="${h(remember(b))}">${cover(b)}<span class="cover-action">${local?'继续阅读':'查看这本书'} ${icon('arrow')}</span></button><button class="book-title" data-book="${h(b.id)}">${h(b.title)}</button><p class="book-author">${h(b.author||'作者未知')}</p><div class="book-tags">${platform?`<span>${platform}</span>`:''}<span>${h(b.genre||'小说')}</span>${local?'<span class="saved-tag">已保存</span>':''}</div></article>`;}
 function recommendationBooks(){const map=new Map();for(const b of [...Object.values(state.ranks).flatMap(r=>r.books||[]),...state.search,...state.recommendations,...Object.values(state.ranks).flatMap(r=>r.raw||[])])if(!map.has(b.id))map.set(b.id,b);return [...map.values()];}
 function continueReading(){const b=state.library.find(x=>x.offset>0);if(!b)return '';return `<section class="continue-card">${cover(b)}<div><div class="eyebrow">接着上次的故事</div><h3>${h(b.title)}</h3><p>${h(b.author)} · 阅读到 ${Math.round(b.offset/Math.max(b.characters||1,1)*100)}%</p></div><button class="primary" data-read="${h(remember(b))}">继续阅读 ${icon('arrow')}</button></section>`;}
-function searchResults(){return `<section class="section search-results"><div class="section-heading"><h2>“${h(state.searchedQuery||state.query)}” 的搜索结果</h2><button class="text-button" data-action="${state.searching?'cancel-search':'clear-search'}">${state.searching?'停止搜索':'收起结果'}</button></div><p class="muted" role="status">${h(state.searchStatus)}</p><div class="book-grid">${state.search.map(b=>bookCard(b)).join('')}</div>${!state.search.length&&!state.searching?empty('暂时没有找到这本书','试试完整书名。部分书源当前可能无法连接，已保存的书仍可在本地阅读。'):''}</section>`;}
+function searchResults(){
+ const allFailed=!state.searching&&state.searchTotal>0&&state.searchErrors.length===state.searchTotal;
+ const problem=state.searchErrors.length?`<details class="source-errors"><summary>查看 ${state.searchErrors.length} 个源的连接问题</summary><ul>${state.searchErrors.map(e=>`<li><strong>${h(defaultSources.download_sources.find(s=>s.name===e.source)?.base_url?new URL(defaultSources.download_sources.find(s=>s.name===e.source).base_url).hostname:e.source)}</strong><span>${h(e.message)}</span></li>`).join('')}</ul></details>`:'';
+ return `<section class="section search-results"><div class="section-heading"><h2>“${h(state.searchedQuery||state.query)}” 的搜索结果</h2><button class="text-button" data-action="${state.searching?'cancel-search':'clear-search'}">${state.searching?'停止搜索':'收起结果'}</button></div><p class="muted" role="status">${h(state.searchStatus)}</p>${problem}<div class="book-grid">${state.search.map(b=>bookCard(b)).join('')}</div>${!state.search.length&&!state.searching?empty(allFailed?'下载源连接失败，搜索未完成':'暂时没有找到这本书',allFailed?'无法判断有没有这本书。检查网络或代理后，再试一次。':'试试完整书名，也可以查看各书源的连接状态。','<button class="outline" data-action="retry-search">重新搜索</button>'):''}</section>`;
+}
 function library(){const books=[...state.library];if(state.sort==='title')books.sort((a,b)=>a.title.localeCompare(b.title,'zh'));return `<section class="page-title"><div class="eyebrow">YOUR LITTLE LIBRARY</div><h1>本地书架<span>.</span></h1><p>${books.length?`${books.length} 本书，已经在这台设备上。断网，也有故事陪你。`:'把喜欢的书存下来，慢慢读。'}</p></section><div class="library-toolbar"><button class="primary" data-action="import">＋ 导入 TXT</button><button class="outline" data-action="paste">粘贴正文</button><button class="outline" data-action="backup">备份书库</button><label class="sort-label">排序 <select id="library-sort"><option value="recent" ${state.sort==='recent'?'selected':''}>最近阅读</option><option value="title" ${state.sort==='title'?'selected':''}>按书名</option></select></label></div><div class="library-grid">${books.map(b=>`<article class="library-card">${cover(b)}<div><h3>${h(b.title)}</h3><p>${h(b.author||'本地导入')}</p><small>${(b.bytes/1024).toFixed(0)} KB · ${b.offset?`${Math.min(100,Math.round(b.offset/Math.max(1,b.characters)*100))}%`:'尚未开始'}</small><div class="library-actions"><button class="primary small" data-read="${h(remember(b))}">${b.offset?'继续阅读':'开始阅读'}</button><button class="quiet" data-export="${h(b.id)}" aria-label="导出${h(b.title)}">导出</button><button class="quiet danger" data-delete="${h(b.id)}" aria-label="移除${h(b.title)}">移除</button></div></div></article>`).join('')}</div>${!books.length?empty('你的第一本书，从这里开始','下载小说，或导入本机 TXT 文件。书籍正文、封面和阅读进度都会保存在当前设备。'):''}<p class="storage-note">书库保存在当前应用或浏览器内。卸载应用、清理网站数据前，请先导出或备份。</p>`;}
 function downloads(){const jobs=[...state.jobs.values()].reverse();return `<section class="page-title"><div class="eyebrow">STORIES TO GO</div><h1>下载<span>.</span></h1><p>小说直接从书源保存到这台设备，无需电脑中转。</p></section><div class="download-list">${jobs.map(j=>`<article class="download-item">${cover(j.book)}<div class="download-copy"><h3>${h(j.book.title)}</h3><p>${h(j.status==='done'?'已完整保存到本机':j.status==='failed'?j.error:j.status==='cancelled'?'已取消，未加入书库':j.label||'正在连接书源')}</p>${j.status==='running'?`<progress max="${j.total||1}" value="${j.done||0}"></progress><small>${j.total?`${j.done||0}/${j.total} 章`:'核对正文中…'}</small>`:''}</div>${j.status==='running'?`<button class="outline" data-cancel="${h(j.book.id)}">取消</button>`:j.status==='done'?`<button class="primary" data-read="${h(j.book.id)}">阅读</button>`:`<button class="outline" data-book="${h(j.book.id)}">重试</button>`}</article>`).join('')}</div>${!jobs.length?empty('这里等着下一本好书','在排行榜或搜索结果中打开小说，选择“下载并保存”。','<button class="outline" data-route="discover">去找好书</button>'):''}`;}
 function settings(){return `<section class="page-title"><div class="eyebrow">MAKE IT YOURS</div><h1>书源与应用<span>.</span></h1><p>手机直接连接已启用的公开书源。来源是否可用取决于当前网络和站点状态。</p></section><section class="settings-card"><h2>下载源</h2>${defaultSources.download_sources.filter(s=>s.type!=='direct_from_candidate').map(s=>`<label class="source-toggle"><span><strong>${h(s.name)}</strong><small>${h(new URL(s.base_url).hostname)}</small></span><input type="checkbox" data-source="${h(s.name)}" ${state.disabled.includes(s.name)?'':'checked'} aria-label="启用${h(s.name)}"></label>`).join('')}</section><section class="settings-card"><h2>手机安装</h2><p>安卓下载 APK 后安装。iPhone 下载 unsigned IPA 后，需要自行签名才能安装。安装包内置页面，运行不依赖电脑。</p><a class="primary link-button" href="https://github.com/yifanchen12/-txt-/releases/latest" target="_blank" rel="noreferrer">前往 GitHub 下载 ↗</a><p class="muted">${native?'当前运行于手机应用内。':'当前为网页模式；联网书目需要配套网页服务，手机原生应用直接连接书源。'}</p></section><section class="settings-card"><h2>本地数据</h2><p>正文、阅读进度与阅读设置只保存在本机。仅使用你有权下载和保存的内容。</p><button class="outline" data-action="backup">导出书库备份</button><label class="outline link-button">恢复备份<input type="file" id="restore-backup" accept=".json,application/json" hidden></label></section>`;}
 
 async function runSearch(){
-  const q=state.query.trim();if(!q)return;searchController?.abort();const controller=searchController=new AbortController();
-  state.search=[];state.searching=true;state.hasSearch=true;state.searchedQuery=q;state.searchStatus='正在搜索已启用的书源…';render();
-  try{const result=await searchBooks(q,{signal:controller.signal,onUpdate:(books,progress)=>{if(searchController!==controller)return;state.search=books;state.searchStatus=`找到 ${books.length} 本 · 已检索 ${progress.checked}/${progress.total} 个源${progress.errors.length?` · ${progress.errors.length} 个源暂时无法连接`:''}`;render();}});if(searchController!==controller)return;state.search=result.books;}
+  const q=state.query.trim();if(!q)return;app.querySelector('#search-input')?.blur();searchController?.abort();const controller=searchController=new AbortController();
+  state.search=[];state.searchErrors=[];state.searchTotal=0;state.searching=true;state.hasSearch=true;state.searchedQuery=q;state.searchStatus='正在搜索已启用的书源…';render();
+  try{const result=await searchBooks(q,{signal:controller.signal,onUpdate:(books,progress)=>{if(searchController!==controller)return;state.search=books;state.searchErrors=progress.errors;state.searchTotal=progress.total;state.searchStatus=progress.checked===progress.total&&progress.errors.length===progress.total?'搜索未完成：全部下载源连接失败':`已检索 ${progress.checked}/${progress.total} 个源 · ${books.length?`找到 ${books.length} 本`:'正在查找匹配书目'}${progress.errors.length?` · ${progress.errors.length} 个源连接失败`:''}`;render();}});if(searchController!==controller)return;state.search=result.books;}
   catch(e){if(e.name!=='AbortError')report(e);}
   finally{if(searchController===controller){state.searching=false;render();}}
 }
@@ -78,11 +85,20 @@ async function startDownload(book){
   if(state.jobs.get(book.id)?.status==='running'){toast('这本书正在下载');return;}
   const controller=new AbortController(),job={book,status:'running',controller,label:'正在核对正文来源',done:0,total:0};state.jobs.set(book.id,job);state.route='downloads';render();
   try{
-    let candidate=book;
-    if(!((await sources()).some(s=>s.name===candidate.source)))candidate={...candidate,sourceConfig:undefined,prepared:undefined};
-    if(!candidate.sourceConfig)candidate=await resolveBook(book,controller.signal);
-    if(!candidate)throw new Error('已启用书源中未找到可下载的完整正文');
-    const result=await downloadBook(candidate,{signal:controller.signal,onProgress:p=>{Object.assign(job,p);if(state.route==='downloads')render();}});
+    const active=await sources();
+    let candidates=[book,...(book.alternatives||[])].filter(b=>b.sourceConfig&&active.some(s=>s.name===b.source));
+    if(!candidates.length){const resolved=await resolveBook(book,controller.signal);if(resolved)candidates=[resolved];}
+    if(!candidates.length)throw new Error('已启用书源中未找到可下载的完整正文');
+    let result,lastError;
+    for(let i=0;i<candidates.length;i++){
+      if(controller.signal.aborted)throw new DOMException('操作已取消','AbortError');
+      try{
+        job.label=`正在尝试 ${candidates[i].source}（${i+1}/${candidates.length}）`;render();
+        result=await downloadBook(candidates[i],{signal:controller.signal,onProgress:p=>{Object.assign(job,p);if(state.route==='downloads')render();}});
+        break;
+      }catch(error){if(error.name==='AbortError')throw error;lastError=error;}
+    }
+    if(!result)throw lastError||new Error('这些来源均未能完成下载，请稍后重试');
     if(controller.signal.aborted)throw new DOMException('操作已取消','AbortError');
     result.book.characters=result.text.length;await saveBook(result.book,result.text);await navigator.storage?.persist?.();
     job.status='done';job.book=result.book;state.library=await listBooks();toast(`《${book.title}》已完整保存到本机`);
@@ -108,6 +124,7 @@ app.addEventListener('click',async e=>{
   if(action==='import')app.querySelector('#import-txt').click();
   if(action==='settings'){state.route='settings';render();}
   if(action==='refresh')refreshRankings();
+  if(action==='retry-search')runSearch();
   if(action==='backup')backup();
   if(action==='paste'){
     const dialog=document.createElement('dialog');dialog.className='book-dialog paste-dialog';

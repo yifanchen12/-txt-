@@ -16,6 +16,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  direct-sources:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci --registry=https://registry.npmjs.org
+      - name: Search and retrieve sample chapters without proxy software
+        run: node scripts/check-direct-sources.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: direct-source-report
+          path: mobile/.reports/direct-sources.json
+
   android:
     runs-on: ubuntu-latest
     defaults:
@@ -91,7 +112,7 @@ jobs:
           path: mobile/release/shiye-ios-unsigned.ipa
 
   release:
-    needs: [android, ios]
+    needs: [android, ios, direct-sources]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

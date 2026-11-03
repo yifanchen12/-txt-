@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {allowedURL,proxyRequest} from '../proxy.js';
+import {allowedURL,proxyRequest,proxyErrorMessage} from '../proxy.js';
+test('区分网络中断、域名失败和超时，不暴露内部错误内容',()=>{
+ assert.match(proxyErrorMessage({cause:{code:'ECONNRESET'}}),/连接中断/);
+ assert.match(proxyErrorMessage({cause:{code:'ENOTFOUND'}}),/域名解析失败/);
+ assert.match(proxyErrorMessage({cause:{code:'ETIMEDOUT'}}),/超时/);
+ assert.ok(!proxyErrorMessage({message:'private diagnostic text'}).includes('private'));
+});
 test('网页请求只允许配置内的源和图片站',()=>{
  assert.equal(allowedURL('http://127.0.0.1/private'),false);assert.equal(allowedURL('file:///etc/passwd'),false);
  assert.equal(allowedURL('https://m.qidian.com.evil.example/book'),false);assert.equal(allowedURL('https://user:password@m.qidian.com/'),false);

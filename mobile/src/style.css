@@ -11,3 +11,5 @@
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 
 .paste-dialog label{display:block;font-size:13px;margin:15px 0}.paste-dialog input,.paste-dialog textarea{display:block;width:100%;margin-top:8px;border:1px solid #d7dccb;background:#fffef8;padding:12px;border-radius:5px;font-size:16px}.paste-dialog textarea{min-height:230px;resize:vertical;line-height:1.7}
+
+.source-errors{margin:15px 0 24px;padding:14px 18px;background:#f2e9df;border:1px solid #e2d5c5;border-radius:7px;font-size:12px;color:#735b47}.source-errors summary{cursor:pointer;min-height:22px}.source-errors ul{list-style:none;margin:12px 0 0;padding:0}.source-errors li{display:flex;justify-content:space-between;gap:15px;padding:8px 0;border-top:1px solid #e6d9c8;flex-wrap:wrap}.source-errors strong{font-weight:500}.source-errors span{color:#826e5c}

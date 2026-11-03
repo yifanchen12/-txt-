@@ -1,5 +1,5 @@
 import {defineConfig} from 'vite';
-import {proxyRequest} from './proxy.js';
+import {proxyRequest,proxyErrorMessage} from './proxy.js';
 import {createHash} from 'node:crypto';
 function localProxy(){return {name:'source-proxy',configureServer(server){server.middlewares.use('/api/fetch',async(req,res)=>{
   if(req.method!=='POST'){res.writeHead(405);res.end();return;}
@@ -7,7 +7,7 @@ function localProxy(){return {name:'source-proxy',configureServer(server){server
     let body='';for await(const chunk of req){body+=chunk;if(body.length>16384){res.writeHead(413);res.end();return;}}
     const response=await proxyRequest(JSON.parse(body));res.writeHead(response.status,Object.fromEntries(response.headers));
     if(response.body)for await(const chunk of response.body)res.write(chunk);res.end();
-  }catch{if(!res.headersSent)res.writeHead(502,{'Content-Type':'text/plain;charset=utf-8'});res.end('书源连接失败，请稍后重试');}
+  }catch(error){if(!res.headersSent)res.writeHead(502,{'Content-Type':'text/plain;charset=utf-8','X-Shiye-Error':'network'});res.end(proxyErrorMessage(error));}
 });}};}
 function offline(){return {name:'offline-reader',generateBundle(_,bundle){
   const files=Object.keys(bundle).filter(f=>!f.endsWith('.map'));

@@ -8,3 +8,5 @@ ios/
 *.keystore
 *.jks
 .env*
+
+.reports/

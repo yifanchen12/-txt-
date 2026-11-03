@@ -2,6 +2,7 @@ export const normalize = value => String(value || '').normalize('NFKC').toLowerC
 export const bookId = book => `${normalize(book.title)}|${normalize(book.author)}`;
 export const escapeHTML = text => String(text ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function webURL(value, base) {
+  if(typeof value!=='string'||!value.trim())return '';
   try { const u = new URL(value, base); return ['https:', 'http:'].includes(u.protocol) ? u.href : ''; } catch { return ''; }
 }
 export function decodeText(bytes, hint = '') {
@@ -36,8 +37,7 @@ export function assertNotAborted(signal) { if (signal?.aborted) throw new DOMExc
 export function coverPlaceholder(book) {
   const title = String(book.title || '未命名').slice(0,22);
   const author = escapeHTML(String(book.author || '本地书籍').slice(0,18));
-  let n = 0; for (const c of title) n = (n*31+c.codePointAt(0))>>>0;
-  const colors = [['#364f4b','#d8c89c'],['#755041','#eedcc5'],['#424d62','#d8dec8'],['#5b475b','#e3d4bd'],['#3b5966','#d4d8c5']][n%5];
+  const colors = ['#454e61','#d8dec8'];
   const lines = (title.match(/.{1,6}/gu) || ['未命名']).map(escapeHTML);
   return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="240" height="340" viewBox="0 0 240 340"><rect width="240" height="340" fill="${colors[0]}"/><rect x="15" y="15" width="210" height="310" fill="none" stroke="${colors[1]}" opacity=".55"/><path d="M24 0v340" stroke="#000" opacity=".16" stroke-width="7"/><circle cx="185" cy="250" r="72" fill="none" stroke="${colors[1]}" opacity=".12" stroke-width="30"/>${lines.map((line,i)=>`<text x="120" y="${92+i*36}" text-anchor="middle" fill="${colors[1]}" font-family="serif" font-size="27">${line}</text>`).join('')}<text x="120" y="282" text-anchor="middle" fill="${colors[1]}" font-family="sans-serif" font-size="13">${author}</text><text x="120" y="307" text-anchor="middle" fill="${colors[1]}" opacity=".65" font-size="9">暂无原作封面 · 拾页</text></svg>`);
 }

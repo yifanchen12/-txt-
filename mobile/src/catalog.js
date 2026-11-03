@@ -57,13 +57,15 @@ export async function searchSource(source,q,signal,{limit=6}={}) {
   for(const a of all(doc,spec.selector)){
     let url=webURL(a.getAttribute('href'),source.base_url||spec.url);
     if(url.includes('ShowInfo.php')){const u=new URL(url);if(u.searchParams.has('classid')&&u.searchParams.has('id'))url=new URL(`/article-${u.searchParams.get('classid')}-${u.searchParams.get('id')}.html`,url).href;}
-    if(url&&!links.includes(url))links.push(url);
-    if(links.length>=limit)break;
+    if(url&&!links.some(item=>item.url===url))links.push({url,label:tidyTitle(a.textContent.trim()).replace(/^\[[^\]]{1,16}\]\s*/, '')});
+    if(links.length>=(source.max_results||30))break;
   }
+  links.sort((a,b)=>Number(normalize(b.label)===normalize(q))-Number(normalize(a.label)===normalize(q)));
+  const selected=links.slice(0,limit);
   const books=[];
-  for(let i=0;i<links.length;i+=2){
+  for(let i=0;i<selected.length;i+=2){
     assertNotAborted(signal);
-    const batch=await Promise.allSettled(links.slice(i,i+2).map(async url=>{
+    const batch=await Promise.allSettled(selected.slice(i,i+2).map(async ({url})=>{
       const result=parseSourceDetail(await text(url,{signal}),url,source);
       if(!normalize(result.book.title).includes(normalize(q)))return null;
       return {...result.book,sourceConfig:source};
@@ -74,13 +76,13 @@ export async function searchSource(source,q,signal,{limit=6}={}) {
 }
 export async function searchBooks(q,{signal,onUpdate=()=>{}}={}) {
   const list=(await sources()).filter(s=>s.type!=='direct_from_candidate');
-  const results=new Map(),errors=[];
+  const results=new Map(),errors=[];let checked=0;
   for(let i=0;i<list.length;i+=3){
     assertNotAborted(signal);
     await Promise.all(list.slice(i,i+3).map(async s=>{
       try {for(const b of await searchSource(s,q,signal)){const old=results.get(b.id);if(!old)results.set(b.id,b);else{old.alternatives=[...(old.alternatives||[]),b];if(!old.cover)old.cover=b.cover;}}}
       catch(e){assertNotAborted(signal);errors.push({source:s.name,message:e.message});}
-      onUpdate([...results.values()],{checked:Math.min(i+3,list.length),total:list.length,errors});
+      onUpdate([...results.values()],{checked:++checked,total:list.length,errors:[...errors]});
     }));
   }
   return {books:[...results.values()],errors};
@@ -90,7 +92,8 @@ export function parseOfficial(platform,html) {
   const doc=documentOf(html),books=[];
   if(platform==='qidian'){
     let state={};try{state=JSON.parse(value(doc,'#vite-plugin-ssr_pageContext')||value(doc,'#__NEXT_DATA__')||'{}');}catch{/* handled by empty-state error */}
-    const data=state.pageProps?.pageData||state.props?.pageProps?.pageData||{};
+    const context=state.pageContext||state;
+    const data=context.pageProps?.pageData||context.props?.pageProps?.pageData||{};
     const records=data.records||data.list?.records||[];
     for(const r of records)if(r.bid&&r.bName){const url=`https://m.qidian.com/book/${r.bid}/`;const img=all(doc,'img').find(n=>(n.getAttribute('data-src')||n.getAttribute('src')||'').includes(`/${r.bid}/`));books.push({title:r.bName,author:r.bAuth||'',genre:r.cat||'小说',description:r.desc||'',rank:Number(r.rankNum)||books.length+1,cover:webURL(img?.getAttribute('data-src')||img?.getAttribute('src')||'',url),detailUrl:url,status:r.state||''});}
   } else if(platform==='fanqie'){
@@ -177,7 +180,9 @@ export async function prepareDownload(book,signal) {
       const raw=a.getAttribute('href')||'',url=webURL(raw,book.detailUrl);
       if(url&&pattern.test(raw)&&!seen.has(url)){seen.add(url);chapters.push({title:a.textContent.trim()||`第${chapters.length+1}章`,url});}
     }
-    return chapters.length>=(s.min_chapters||20)?{kind:'chapters',chapters}:null;
+    if(chapters.length<(s.min_chapters||20))return null;
+    await chapterText(chapters[0],s,signal);
+    return {kind:'chapters',chapters};
   }
   const {book:parsed,doc}=parseSourceDetail(await text(book.detailUrl,{signal}),book.detailUrl,s,book);
   let url=parsed.downloadUrl;

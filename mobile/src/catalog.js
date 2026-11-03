@@ -242,10 +242,10 @@ async function chapterText(chapter,source,signal) {
   }
   return parts.join('\n\n');
 }
-export async function downloadBook(book,{signal,onProgress=()=>{}}={}) {
+export async function downloadBook(book,{signal,onProgress=()=>{},fallbacks=[]}={}) {
   const prepared=book.prepared||await prepareDownload(book,signal);
   if(!prepared)throw new Error('未找到可直接下载的正文，请更换书源');
-  let content='';
+  let content='';const usedSources=new Set(book.source?[book.source]:[]);
   if(prepared.kind==='file'){
     onProgress({done:0,total:1,label:'正在下载正文'});
     const r=await request(prepared.url,{signal,timeout:60000});content=decodeText(r.bytes);
@@ -254,11 +254,38 @@ export async function downloadBook(book,{signal,onProgress=()=>{}}={}) {
     onProgress({done:1,total:1,label:'正文已下载'});
   }else{
     const parts=new Array(prepared.chapters.length);let done=0;
+    let alternatives;const catalogs=new Map();
+    const chapterKey=title=>normalize(title.replace(/[（(][^（）()]{0,80}(?:月票|推荐|订阅|加更|打赏|求票)[^（）()]{0,80}[）)]/g,''));
+    async function readChapter(chapter){
+      try{return await chapterText(chapter,book.sourceConfig,signal);}catch(original){
+        if(original.name==='AbortError')throw original;
+        assertNotAborted(signal);
+        // Cross-source repair requires a known author and one unambiguous
+        // matching chapter; a matching ordinal alone is never sufficient.
+        if(!normalize(book.author))throw original;
+        alternatives??=(async()=>{
+          let candidates=[...fallbacks,...(book.alternatives||[])];
+          if(!candidates.length)candidates=(await searchBooks(book.title,{signal})).books.flatMap(b=>[b,...(b.alternatives||[])]);
+          return candidates.filter(b=>b.source!==book.source&&b.sourceConfig?.type==='chapter_scraper'&&sameBook(book,b));
+        })();
+        for(const other of await alternatives){
+          assertNotAborted(signal);
+          try{
+            if(!catalogs.has(other.source))catalogs.set(other.source,other.prepared?Promise.resolve(other.prepared):prepareDownload(other,signal));
+            const catalog=await catalogs.get(other.source);
+            const matches=catalog?.chapters?.filter(c=>chapterKey(c.title)===chapterKey(chapter.title))||[];
+            if(matches.length!==1)continue;
+            const body=await chapterText(matches[0],other.sourceConfig,signal);usedSources.add(other.source);return body;
+          }catch{assertNotAborted(signal);}
+        }
+        throw original;
+      }
+    }
     // Two requests at a time keep long books usable without flooding the source.
     for(let i=0;i<prepared.chapters.length;i+=2){
       assertNotAborted(signal);
       await Promise.all(prepared.chapters.slice(i,i+2).map(async(ch,j)=>{
-        let body;try{body=await chapterText(ch,book.sourceConfig,signal);}catch(error){if(error.name==='AbortError')throw error;throw new Error(`第 ${i+j+1}/${parts.length} 章“${ch.title}”读取失败：${error.message}`);}
+        let body;try{body=await readChapter(ch);}catch(error){if(error.name==='AbortError')throw error;throw new Error(`第 ${i+j+1}/${parts.length} 章“${ch.title}”读取失败：${error.message}`);}
         parts[i+j]=`${ch.title}\n\n${body}`;
         onProgress({done:++done,total:parts.length,label:ch.title});
       }));
@@ -268,5 +295,5 @@ export async function downloadBook(book,{signal,onProgress=()=>{}}={}) {
   }
   assertNotAborted(signal);
   const cover=await coverData(book.cover,signal);
-  return {text:content,book:{...book,cover:cover||'',remoteCover:book.cover,prepared:undefined,alternatives:undefined,sourceConfig:undefined,id:bookId(book)}};
+  return {text:content,book:{...book,cover:cover||'',remoteCover:book.cover,sourcesUsed:[...usedSources],prepared:undefined,alternatives:undefined,sourceConfig:undefined,id:bookId(book)}};
 }

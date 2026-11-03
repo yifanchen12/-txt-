@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DOMParser} from 'linkedom';
+import 'fake-indexeddb/auto';
 globalThis.DOMParser=DOMParser;
 const {downloadBook}=await import('../src/catalog.js');
 test('正文下载不会把 HTML 登录页当作小说',async()=>{
@@ -54,4 +55,22 @@ test('页码提示还有正文但下一页链接丢失时拒绝完成',async()=>
  const previous=globalThis.fetch;
  globalThis.fetch=async()=>new Response('<html><body><article>第(1/3)页<br>部分正文</article></body></html>');
  try{await assert.rejects(downloadBook({id:'missing-page',title:'测试',sourceConfig:{chapter_content_selector:'article'},prepared:{kind:'chapters',chapters:[{title:'第一章',url:'https://example.com/10.html'}]}}),/缺少第 2\/3 页/);}finally{globalThis.fetch=previous;}
+});
+
+test('失败章节可从同书同作者的唯一同名章节补读，保留来源记录',async()=>{
+ const previous=globalThis.fetch,seen=[];
+ globalThis.fetch=async(_,options)=>{const u=JSON.parse(options.body).url;seen.push(u);return u.includes('primary')?new Response('temporary',{status:500}):new Response('<html><body><article>替代源的完整正文</article></body></html>');};
+ const b={title:'测试长篇',author:'甲',source:'primary',sourceConfig:{type:'chapter_scraper',chapter_content_selector:'article'},prepared:{kind:'chapters',chapters:[{title:'第一章 开始（求月票）',url:'https://example.com/primary.html'}]}};
+ const alternative={...b,source:'other',prepared:{kind:'chapters',chapters:[{title:'第一章 开始',url:'https://example.com/other.html'}]}};
+ try{const r=await downloadBook(b,{fallbacks:[alternative]});assert.ok(r.text.includes('替代源的完整正文'));assert.deepEqual(r.book.sourcesUsed,['primary','other']);assert.ok(seen.includes('https://example.com/other.html'));}finally{globalThis.fetch=previous;}
+});
+
+test('不从作者不同或章节有歧义的来源补读',async()=>{
+ const previous=globalThis.fetch,seen=[];
+ globalThis.fetch=async(_,options)=>{const u=JSON.parse(options.body).url;seen.push(u);return new Response('temporary',{status:500});};
+ const ch={title:'第一章 开始',url:'https://example.com/main.html'};
+ const b={title:'测试长篇',author:'甲',source:'primary',sourceConfig:{type:'chapter_scraper',chapter_content_selector:'article'},prepared:{kind:'chapters',chapters:[ch]}};
+ const wrong={...b,author:'乙',source:'wrong',prepared:{kind:'chapters',chapters:[{...ch,url:'https://example.com/wrong.html'}]}};
+ const ambiguous={...b,source:'ambiguous',prepared:{kind:'chapters',chapters:[{...ch,url:'https://example.com/a.html'},{...ch,url:'https://example.com/b.html'}]}};
+ try{await assert.rejects(downloadBook(b,{fallbacks:[wrong,ambiguous]}),/500/);assert.ok(seen.every(u=>u===ch.url));}finally{globalThis.fetch=previous;}
 });

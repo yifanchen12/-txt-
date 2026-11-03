@@ -1,6 +1,6 @@
 # macOS / Xcode iPhone 真机安装
 
-本流程在 Mac mini 本地执行；GitHub Actions 发布的 `shiye-ios-unsigned.ipa` **没有开发签名，不能直接安装**。CI 编译成功不代表真机安装、联网或阅读功能通过。
+本流程在 Mac mini 本地执行（Capacitor 8 需要 Xcode 26.0 或更新版本）；GitHub Actions 发布的 `shiye-ios-unsigned.ipa` **没有开发签名，不能直接安装**。CI 编译成功不代表真机安装、联网或阅读功能通过。
 
 ## 首次准备
 
@@ -14,16 +14,15 @@
    cd shiye/mobile
    npm ci
    xcrun devicectl list devices
-   export APPLE_TEAM_ID=XXXXXXXXXX
-   export IOS_DEVICE_ID='设备 UDID'
+   npm run ios:device -- setup
    npm run ios:device -- install
    ```
 
-   将 Team ID 和设备 UDID 替换成自己的真实值。不要提交 Apple 账号密码、私钥、证书或 Provisioning Profile。若 Bundle ID 在团队中冲突，可指定 `export IOS_BUNDLE_ID=你的反向域名标识`，之后保持不变，否则系统会视作另一款 App，书库数据不会自动迁移。
+   首次 `setup` 会显示配对设备，提示录入 Team ID、设备 ID 和可选的 Bundle ID（默认 `io.github.yifanchen12.novelarchive`）。值保存在 Git 忽略的 `.ios-device.env` 中，文件权限为仅当前用户可读写。也支持通过 `APPLE_TEAM_ID`、`IOS_DEVICE_ID`、`IOS_BUNDLE_ID` 环境变量覆盖。不要提交 Apple 账号密码、私钥、证书或 Provisioning Profile。若 Bundle ID 在团队中冲突，可指定唯一的反向域名标识，并保持不变，否则系统会视作另一款 App，书库数据不会自动迁移。
 
 ## 后续使用
 
-每次更新代码后，在 `mobile/` 目录运行 `npm run ios:device -- install`。脚本执行 Web 构建、创建或同步 iOS 工程、应用原生配置、自动签名构建并安装到指定设备。仅构建用 `npm run ios:device -- build`。首次若 Xcode 要求选择团队或处理签名，请打开 `mobile/ios/App/App.xcworkspace`，选中 App Target → Signing & Capabilities，开启 Automatically manage signing 并选择相同 Team，然后重试脚本。不要打开 `.xcodeproj` 替代 workspace。
+每次更新代码后，在 `mobile/` 目录运行 `npm run ios:device -- install`。脚本执行 Web 构建、创建或同步 iOS 工程、应用原生配置、自动签名构建并安装到指定设备。仅构建用 `npm run ios:device -- build`。首次若 Xcode 要求选择团队或处理签名，请打开 `mobile/ios/App/App.xcodeproj`（Capacitor 8 默认的 Swift Package Manager 工程），或者工程存在时使用 `mobile/ios/App/App.xcworkspace`（CocoaPods），选中 App Target → Signing & Capabilities，开启 Automatically manage signing 并选择相同 Team，然后重试脚本。
 
 ## 常见故障
 

@@ -11,7 +11,8 @@
     "android": "npm run build && cap sync android",
     "ios": "npm run build && cap sync ios",
     "desktop": "npm run build && electron desktop/main.mjs",
-    "package:windows": "npm run build && node scripts/package-desktop.mjs"
+    "package:windows": "npm run build && node scripts/package-desktop.mjs",
+    "ios:device": "bash scripts/ios-device.sh"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.0",

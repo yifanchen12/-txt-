@@ -3,12 +3,12 @@ import {getText,saveProgress,getSetting,setSetting} from './storage.js';
 import {splitChapters,chapterAt,escapeHTML} from './core.js';
 
 export const THEMES=[
-  {id:'paper',name:'米白',background:'#f4efe3',ink:'#332d25'},
-  {id:'white',name:'素白',background:'#fafafa',ink:'#292929'},
-  {id:'green',name:'豆绿',background:'#dce5d3',ink:'#29382a'},
-  {id:'blue',name:'浅蓝',background:'#dce5eb',ink:'#293541'},
-  {id:'rose',name:'浅粉',background:'#ead9d8',ink:'#473333'},
-  {id:'night',name:'深夜',background:'#202321',ink:'#b5baaf'}
+  {id:'paper',name:'米色',background:'#f5f1e8',ink:'#191919'},
+  {id:'white',name:'默认',background:'#ffffff',ink:'#191919'},
+  {id:'green',name:'浅绿',background:'#e0eee1',ink:'#191919'},
+  {id:'blue',name:'浅蓝',background:'#dcebef',ink:'#191919'},
+  {id:'yellow',name:'浅黄',background:'#efe2c0',ink:'#191919'},
+  {id:'night',name:'深夜',background:'#191919',ink:'#a3a3a3'}
 ];
 export class Reader {
   constructor({onClose,onError}) {this.onClose=onClose;this.onError=onError;this.offset=0;this.generation=0;}
@@ -79,7 +79,7 @@ export class Reader {
     measure.remove();if(generation!==this.generation)return;
     if(!this.pages.length)this.pages.push({start:chapter.start,text:''});
     const elements=this.pages.map((p,i)=>{const el=document.createElement('article');el.className='reader-page';el.dataset.density='soft';el.innerHTML=`<small class="paper-heading">${escapeHTML(chapter.title)}</small><div class="paper-body"></div><small class="paper-number">${i+1} / ${this.pages.length}</small>`;el.querySelector('.paper-body').textContent=p.text;host.append(el);return el;});
-    const page=Math.max(0,this.pages.findLastIndex(p=>p.start<=this.offset));
+    let page=0;for(let i=0;i<this.pages.length;i++){if(this.pages[i].start<=this.offset)page=i;else break;}
     this.flip=new PageFlip(host,{width,height,size:'fixed',usePortrait:true,autoSize:false,drawShadow:true,maxShadowOpacity:0.32,flippingTime:matchMedia('(prefers-reduced-motion: reduce)').matches?1:480,startPage:page,showCover:false,mobileScrollSupport:false,swipeDistance:28,disableFlipByClick:true});
     this.flip.on('flip',e=>{this.offset=this.pages[e.data]?.start??this.offset;this.updatePosition();this.persist();});
     this.flip.loadFromHTML(elements);this.updatePosition();await this.persist();

@@ -1,5 +1,5 @@
 import './style.css';
-import {PLATFORMS,loadRanking,searchBooks,resolveBook,downloadBook,defaultSources,officialBooks} from './catalog.js';
+import {PLATFORMS,loadRanking,searchBooks,resolveBook,downloadBook,defaultSources,sources} from './catalog.js';
 import {native} from './network.js';
 import {bookId,escapeHTML as h,coverPlaceholder,decodeText} from './core.js';
 import {listBooks,saveBook,getText,deleteBook,getSetting,setSetting,getCache} from './storage.js';
@@ -25,7 +25,7 @@ function render(){
   app.querySelector('#import-txt')?.addEventListener('change',async e=>{for(const f of e.target.files)await importText(f);});
   if(focused==='search-input'){const input=app.querySelector('#search-input');input?.focus({preventScroll:true});if(selection!==null)input?.setSelectionRange(selection,selection);}
 }
-function searchBar(){return `<form id="search-form" class="search-box" role="search"><label class="sr-only" for="search-input">搜索书名或作者</label>${icon('search')}<input id="search-input" name="q" type="search" autocomplete="off" placeholder="找一本想读的书，或一位喜欢的作者" value="${h(state.query)}" required maxlength="100"><button type="submit" class="primary">${state.searching?'重新搜索':'搜索好书'}</button></form>`;}
+function searchBar(){return `<form id="search-form" class="search-box" role="search"><label class="sr-only" for="search-input">搜索小说书名</label>${icon('search')}<input id="search-input" name="q" type="search" autocomplete="off" placeholder="输入想读的小说名，发现你的下一本好书" value="${h(state.query)}" required maxlength="100"><button type="submit" class="primary">${state.searching?'重新搜索':'搜索好书'}</button></form>`;}
 function discover(){
   return `<section class="hero"><div class="hero-copy"><div class="eyebrow"><span></span> 把喜欢的故事，留在身边</div><h1>翻开一页，<br>遇见另一个世界<span>。</span></h1><p>从热榜发现好书，下载到本机。<br class="mobile-only">从此，阅读不必等待网络。</p></div><div class="hero-art" aria-hidden="true"><div class="orbit"></div><span class="art-star star-one">✧</span><span class="art-star star-two">✦</span><div class="drawn-book book-back"><span>山海之间</span></div><div class="drawn-book book-front"><i></i><span>故事<br>未完</span><small>ONE MORE PAGE</small></div><div class="art-caption">给自己，一段阅读的时间。</div></div></section><section class="search-section">${searchBar()}<div class="search-hint"><span>起点</span><i></i><span>番茄</span><i></i><span>晋江</span><em>本机保存 · 离线可读</em></div></section>${state.query&&state.searching||state.hasSearch?searchResults():''}<section class="section ranking-section"><div class="section-heading"><div><div class="eyebrow">THE READING LIST</div><h2>榜上好故事<span class="heading-dot">.</span></h2></div><button class="text-button" data-action="refresh">${rankLoading?'停止刷新':'刷新榜单'} ↻</button></div><p class="section-intro">按官方榜单顺序，筛选已在书源匹配到正文的完本作品。排名保留官方名次。</p><div class="ranking-grid">${Object.keys(PLATFORMS).map(p=>rankingBoard(p)).join('')}</div></section>${continueReading()}<section class="section recommendations"><div class="section-heading"><div><div class="eyebrow">KEEP EXPLORING</div><h2>往下翻，还有好故事<span class="heading-dot">.</span></h2></div><span class="muted">来自官方榜单与本次搜索</span></div><div class="book-grid">${recommendationBooks().slice(0,24).map(b=>bookCard(b)).join('')}</div>${!recommendationBooks().length?empty('故事正在来的路上','刷新榜单，或搜索想读的小说。也可以导入自己的 TXT，立即开始阅读。','<button class="outline" data-action="import">导入本地小说</button>'):''}</section>`;
 }
@@ -79,6 +79,7 @@ async function startDownload(book){
   const controller=new AbortController(),job={book,status:'running',controller,label:'正在核对正文来源',done:0,total:0};state.jobs.set(book.id,job);state.route='downloads';render();
   try{
     let candidate=book;
+    if(!((await sources()).some(s=>s.name===candidate.source)))candidate={...candidate,sourceConfig:undefined,prepared:undefined};
     if(!candidate.sourceConfig)candidate=await resolveBook(book,controller.signal);
     if(!candidate)throw new Error('已启用书源中未找到可下载的完整正文');
     const result=await downloadBook(candidate,{signal:controller.signal,onProgress:p=>{Object.assign(job,p);if(state.route==='downloads')render();}});

@@ -8,7 +8,7 @@ export async function proxyRequest(payload,fetcher=fetch){
   if(payload.body&&typeof payload.body!=='string')return new Response('请求格式不正确',{status:400});
   let url=payload.url,method=payload.method||'GET',body=payload.body;
   for(let i=0;i<8;i++){
-    const response=await fetcher(url,{method,body:method==='POST'?body:undefined,headers:{'User-Agent':'Mozilla/5.0 (compatible; Shiye/1.0)','Accept':'text/html,application/json,image/*,*/*',...(method==='POST'?{'Content-Type':'application/x-www-form-urlencoded'}:{})},redirect:'manual',signal:AbortSignal.timeout(18000)});
+    const response=await fetcher(url,{method,body:method==='POST'?body:undefined,headers:{'User-Agent':'Mozilla/5.0','Accept':'text/html,application/json,image/*,*/*',...(method==='POST'?{'Content-Type':'application/x-www-form-urlencoded'}:{})},redirect:'manual',signal:AbortSignal.timeout(18000)});
     if([301,302,303,307,308].includes(response.status)){
       const location=response.headers.get('location');if(!location)return new Response('书源重定向异常',{status:502});
       const next=new URL(location,url).href;if(!allowedURL(next))return new Response('书源跳转到未配置的地址',{status:403});

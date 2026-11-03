@@ -12,3 +12,5 @@ ios/
 .reports/
 .desktop-stage/
 desktop-out/
+.ios-device.env
+.ios-derived-data/

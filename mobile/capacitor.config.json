@@ -1,0 +1,9 @@
+{
+  "appId": "io.github.yifanchen12.novelarchive",
+  "appName": "拾页",
+  "webDir": "dist",
+  "backgroundColor": "#f8f6f1",
+  "ios": {"contentInset": "never", "preferredContentMode": "mobile"},
+  "android": {"backgroundColor": "#f8f6f1", "allowMixedContent": true},
+  "plugins": {"CapacitorHttp": {"enabled": false}}
+}

@@ -1,0 +1,117 @@
+name: Build mobile apps
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/mobile-release.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mobile-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - run: npm ci --registry=https://registry.npmjs.org
+      - run: npm test
+      - run: npm run build
+      - run: npx cap add android
+      - run: node scripts/prepare-native.mjs
+      - name: Compile APK
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleDebug --no-daemon
+      - name: Package Android and website
+        run: |
+          mkdir -p release
+          cp android/app/build/outputs/apk/debug/app-debug.apk release/shiye-android.apk
+          cd dist
+          zip -qr ../release/shiye-web.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-and-web
+          path: mobile/release/*
+
+  ios:
+    runs-on: macos-26
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci --registry=https://registry.npmjs.org
+      - run: npm test
+      - run: npm run build
+      - run: npx cap add ios
+      - run: node scripts/prepare-native.mjs
+      - name: Compile real iPhone device application without signing
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath ios-build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' build
+      - name: Package unsigned IPA
+        run: |
+          test -f ios-build/Build/Products/Release-iphoneos/App.app/App
+          file ios-build/Build/Products/Release-iphoneos/App.app/App
+          mkdir -p release/Payload
+          cp -R ios-build/Build/Products/Release-iphoneos/App.app release/Payload/
+          cd release
+          zip -qry shiye-ios-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-unsigned
+          path: mobile/release/shiye-ios-unsigned.ipa
+
+  release:
+    needs: [android, ios]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+      - name: Publish browser-downloadable assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd release
+          sha256sum shiye-android.apk shiye-ios-unsigned.ipa shiye-web.zip > SHA256SUMS.txt
+          cat > RELEASE_NOTES.md <<'NOTES'
+          拾页：网站式小说书城、三站分区榜单、封面、搜索、本机下载与离线阅读。
+
+          - 安卓：下载 shiye-android.apk 后安装。预览构建使用临时调试签名，升级前请备份书库。
+          - iPhone / iPad：下载 shiye-ios-unsigned.ipa 后自行签名安装。该文件为真实 iOS 设备编译的未签名 IPA，不能仅凭 Safari 下载就直接安装。
+          - 应用运行时直接连接书源，不依赖电脑或电脑上的 Python 服务。
+          - 本地书架支持 TXT 导入、章节目录、背景、字号、行距、仿真翻页、进度恢复及备份。
+          - 书源可能因当前网络或站点限制无法连接。榜单只将已匹配正文入口的完本作品列为可下载；只有完整下载后才加入本机书库。
+          - shiye-web.zip 为网页构建，联网检索需要配套的云端或本地代理，原生手机应用不需要该代理。
+
+          构建成功不等于已完成真机安装及各书源联网下载验证。
+          NOTES
+          gh release create "mobile-v1.0.0-${{ github.run_number }}" shiye-android.apk shiye-ios-unsigned.ipa shiye-web.zip SHA256SUMS.txt --title '拾页 1.0 · 手机独立版' --notes-file RELEASE_NOTES.md --latest

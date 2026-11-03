@@ -1,8 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DOMParser} from 'linkedom';
+import 'fake-indexeddb/auto';
+import {setSetting} from '../src/storage.js';
+import defaults from '../src/default-sources.json' with {type:'json'};
+import snapshot from '../src/qidian-snapshot.json' with {type:'json'};
 globalThis.DOMParser=DOMParser;
-const {parseOfficial,parseSourceDetail,findCover,prepareDownload}=await import('../src/catalog.js');
+const {parseOfficial,parseSourceDetail,findCover,prepareDownload,officialBooks,loadRanking}=await import('../src/catalog.js');
+test('官方仅返回脚本页时说明原因，缓存时间保留原始抓取时间',async()=>{
+ const previous=globalThis.fetch;globalThis.fetch=async()=>new Response('<script>document.cookie="test";location.reload()</script>');
+ await setSetting('disabledSources',defaults.download_sources.map(s=>s.name));
+ try{
+  await assert.rejects(officialBooks('qidian'),/只返回脚本页/);
+  const r=await loadRanking('qidian');assert.equal(r.stale,true);assert.equal(r.time,snapshot.time);assert.deepEqual(r.raw,snapshot.books);assert.equal(r.books.length,0);
+ }finally{globalThis.fetch=previous;await setSetting('disabledSources',[]);}
+});
 test('起点按实际 rankNum 保留名次并提取 data-src 封面',()=>{
  const html='<html><head></head><body><img data-src="//bookcover.yuewen.com/qdbimg/349573/123/180"><script id="vite-plugin-ssr_pageContext" type="application/json">'+JSON.stringify({pageProps:{pageData:{records:[{bid:'123',bName:'测试书',bAuth:'甲',rankNum:7,cat:'科幻'}]}}})+'</script></body></html>';
  const books=parseOfficial('qidian',html);assert.equal(books[0].rank,7);assert.equal(books[0].author,'甲');assert.ok(books[0].cover.startsWith('https://bookcover.'));

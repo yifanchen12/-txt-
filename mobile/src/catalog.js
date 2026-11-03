@@ -1,4 +1,5 @@
 import defaults from './default-sources.json' with {type:'json'};
+import qidianSnapshot from './qidian-snapshot.json' with {type:'json'};
 import {text,request,coverData} from './network.js';
 import {normalize,bookId,webURL,decodeText,sameBook,completed,assertNotAborted} from './core.js';
 import {getSetting,getCache,setCache} from './storage.js';
@@ -114,7 +115,11 @@ export function parseOfficial(platform,html) {
 export async function officialBooks(platform,signal) {
   const html=await text(PLATFORMS[platform].url,{signal});
   const books=parseOfficial(platform,html);
-  if(!books.length)throw new Error('官方榜单暂时无法解析，请稍后刷新');
+  if(!books.length){
+    const doc=documentOf(html);
+    if(doc.querySelector('script')&&plain(doc.body).length<20&&html.length<10000)throw new Error('官网当前只返回脚本页，未提供可读取的榜单；可查看官网或稍后刷新');
+    throw new Error('官方榜单暂时无法解析，请稍后刷新');
+  }
   // Public detail-page titles contain readable names even when ranking text uses a display font.
   for(let i=0;i<books.length;i+=3){
     await Promise.all(books.slice(i,i+3).map(async b=>{
@@ -150,23 +155,28 @@ export async function resolveBook(wanted,signal,available) {
 export async function loadRanking(platform,{signal,onUpdate=()=>{}}={}) {
   const cached=await getCache(`rank-${platform}`);
   if(cached?.books?.length)onUpdate({...cached,stale:true});
-  const raw=await officialBooks(platform,signal),books=[];
-  const time=Date.now();
-  onUpdate({books,raw,rawCount:raw.length,checked:0,time});
+  let raw,time=Date.now(),stale=false,notice='';const books=[];
+  try{raw=await officialBooks(platform,signal);}catch(error){
+    assertNotAborted(signal);
+    const fallback=cached?.raw?.length?{books:cached.raw,time:cached.time}:platform==='qidian'?qidianSnapshot:null;
+    if(!fallback)throw error;
+    raw=fallback.books;time=fallback.time;stale=true;notice=error.message;
+  }
+  onUpdate({books,raw,rawCount:raw.length,checked:0,time,stale,notice});
   const enabled=(await sources()).filter(s=>s.base_url&&s.type!=='direct_from_candidate');
   const checks=await Promise.allSettled(enabled.map(async s=>{await text(s.base_url,{signal,timeout:8000});return s;}));
   assertNotAborted(signal);
   const available=checks.filter(r=>r.status==='fulfilled').map(r=>r.value);
-  if(!available.length){const result={books,raw,rawCount:raw.length,checked:0,time,error:'下载源暂时均无法连接，稍后重试'};await setCache(`rank-${platform}`,result);onUpdate(result);return result;}
+  if(!available.length){const result={books,raw,rawCount:raw.length,checked:0,time,stale,notice,error:'下载源暂时均无法连接，稍后重试'};await setCache(`rank-${platform}`,result);onUpdate(result);return result;}
   for(let i=0;i<raw.length&&books.length<8;i+=2){
     assertNotAborted(signal);
     await Promise.all(raw.slice(i,i+2).map(async b=>{
       const match=await resolveBook(b,signal,available);if(match)books.push(match);
     }));
     books.sort((a,b)=>a.rank-b.rank);
-    onUpdate({books:[...books],raw,rawCount:raw.length,checked:Math.min(i+2,raw.length),time});
+    onUpdate({books:[...books],raw,rawCount:raw.length,checked:Math.min(i+2,raw.length),time,stale,notice});
   }
-  const result={books,raw,rawCount:raw.length,checked:raw.length,time};
+  const result={books,raw,rawCount:raw.length,checked:raw.length,time,stale,notice};
   await setCache(`rank-${platform}`,result);return result;
 }
 export async function prepareDownload(book,signal) {

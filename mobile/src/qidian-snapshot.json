@@ -1,0 +1,227 @@
+{
+  "platform": "qidian",
+  "time": 1793695155035.5054,
+  "source": "https://m.qidian.com/rank/hotsales/",
+  "books": [
+    {
+      "title": "夜无疆",
+      "author": "辰东",
+      "genre": "玄幻",
+      "rank": 1,
+      "cover": "https://bookcover.yuewen.com/qdbimg/349573/1040765595/180",
+      "detailUrl": "https://m.qidian.com/book/1040765595/",
+      "status": "",
+      "id": "夜无疆|辰东",
+      "platform": "qidian"
+    },
+    {
+      "title": "神宠供应商",
+      "author": "轻泉流响",
+      "genre": "轻小说",
+      "rank": 2,
+      "cover": "https://bookcover.yuewen.com/qdbimg/349573/1050460263/180",
+      "detailUrl": "https://m.qidian.com/book/1050460263/",
+      "status": "",
+      "id": "神宠供应商|轻泉流响",
+      "platform": "qidian"
+    },
+    {
+      "title": "玄鉴仙族",
+      "author": "季越人",
+      "genre": "仙侠",
+      "rank": 3,
+      "cover": "https://bookcover.yuewen.com/qdbimg/349573/1035420986/180",
+      "detailUrl": "https://m.qidian.com/book/1035420986/",
+      "status": "",
+      "id": "玄鉴仙族|季越人",
+      "platform": "qidian"
+    },
+    {
+      "title": "没钱修什么仙？",
+      "author": "熊狼狗",
+      "genre": "仙侠",
+      "rank": 4,
+      "cover": "https://bookcover.yuewen.com/qdbimg/349573/1042256511/180",
+      "detailUrl": "https://m.qidian.com/book/1042256511/",
+      "status": "",
+      "id": "没钱修什么仙?|熊狼狗",
+      "platform": "qidian"
+    },
+    {
+      "title": "武道！",
+      "author": "田隶",
+      "genre": "玄幻",
+      "rank": 5,
+      "cover": "https://bookcover.yuewen.com/qdbimg/349573/1049534879/180",
+      "detailUrl": "https://m.qidian.com/book/1049534879/",
+      "status": "",
+      "id": "武道!|田隶",
+      "platform": "qidian"
+    },
+    {
+      "title": "青山",
+      "author": "会说话的肘子",
+      "genre": "玄幻",
+      "rank": 6,
+      "cover": "https://bookcover.yuewen.com/qdbimg/349573/1033014772/180",
+      "detailUrl": "https://m.qidian.com/book/1033014772/",
+      "status": "",
+      "id": "青山|会说话的肘子",
+      "platform": "qidian"
+    },
+    {
+      "title": "原来我是仙道天骄",
+      "author": "醋六香",
+      "genre": "仙侠",
+      "rank": 7,
+      "cover": "https://bookcover.yuewen.com/qdbimg/349573/1050032171/180",
+      "detailUrl": "https://m.qidian.com/book/1050032171/",
+      "status": "",
+      "id": "原来我是仙道天骄|醋六香",
+      "platform": "qidian"
+    },
+    {
+      "title": "让仙门再次伟大",
+      "author": "鹤守月满池",
+      "genre": "玄幻",
+      "rank": 8,
+      "cover": "https://bookcover.yuewen.com/qdbimg/349573/1049107474/180",
+      "detailUrl": "https://m.qidian.com/book/1049107474/",
+      "status": "",
+      "id": "让仙门再次伟大|鹤守月满池",
+      "platform": "qidian"
+    },
+    {
+      "title": "廓晋",
+      "author": "榴弹怕水",
+      "genre": "历史",
+      "rank": 9,
+      "cover": "https://bookcover.yuewen.com/qdbimg/349573/1047881102/180",
+      "detailUrl": "https://m.qidian.com/book/1047881102/",
+      "status": "",
+      "id": "廓晋|榴弹怕水",
+      "platform": "qidian"
+    },
+    {
+      "title": "剑烛大荒",
+      "author": "爱潜水的乌贼",
+      "genre": "玄幻",
+      "rank": 10,
+      "cover": "https://bookcover.yuewen.com/qdbimg/349573/1048862481/180",
+      "detailUrl": "https://m.qidian.com/book/1048862481/",
+      "status": "",
+      "id": "剑烛大荒|爱潜水的乌贼",
+      "platform": "qidian"
+    },
+    {
+      "title": "我的魔法没有上限！",
+      "author": "瑟瑟发抖梨花猫",
+      "genre": "奇幻",
+      "rank": 11,
+      "cover": "https://bookcover.yuewen.com/qdbimg/349573/1040840487/180",
+      "detailUrl": "https://m.qidian.com/book/1040840487/",
+      "status": "",
+      "id": "我的魔法没有上限!|瑟瑟发抖梨花猫",
+      "platform": "qidian"
+    },
+    {
+      "title": "1984：从川菜馆开始",
+      "author": "轻语江湖",
+      "genre": "都市",
+      "rank": 12,
+      "cover": "https://bookcover.yuewen.com/qdbimg/349573/1044818845/180",
+      "detailUrl": "https://m.qidian.com/book/1044818845/",
+      "status": "",
+      "id": "1984从川菜馆开始|轻语江湖",
+      "platform": "qidian"
+    },
+    {
+      "title": "请勿高考时渡劫",
+      "author": "最白的乌鸦",
+      "genre": "都市",
+      "rank": 13,
+      "cover": "https://bookcover.yuewen.com/qdbimg/349573/1049898328/180",
+      "detailUrl": "https://m.qidian.com/book/1049898328/",
+      "status": "",
+      "id": "请勿高考时渡劫|最白的乌鸦",
+      "platform": "qidian"
+    },
+    {
+      "title": "以神通之名",
+      "author": "猪心虾仁",
+      "genre": "都市",
+      "rank": 14,
+      "cover": "https://bookcover.yuewen.com/qdbimg/349573/1044896207/180",
+      "detailUrl": "https://m.qidian.com/book/1044896207/",
+      "status": "",
+      "id": "以神通之名|猪心虾仁",
+      "platform": "qidian"
+    },
+    {
+      "title": "捞尸人",
+      "author": "纯洁滴小龙",
+      "genre": "都市",
+      "rank": 15,
+      "cover": "https://bookcover.yuewen.com/qdbimg/349573/1041637443/180",
+      "detailUrl": "https://m.qidian.com/book/1041637443/",
+      "status": "",
+      "id": "捞尸人|纯洁滴小龙",
+      "platform": "qidian"
+    },
+    {
+      "title": "还不起学贷的我只好兼职猎魔",
+      "author": "小夕岁",
+      "genre": "轻小说",
+      "rank": 16,
+      "cover": "https://bookcover.yuewen.com/qdbimg/349573/1049836819/180",
+      "detailUrl": "https://m.qidian.com/book/1049836819/",
+      "status": "",
+      "id": "还不起学贷的我只好兼职猎魔|小夕岁",
+      "platform": "qidian"
+    },
+    {
+      "title": "元始法则",
+      "author": "飞天鱼",
+      "genre": "玄幻",
+      "rank": 17,
+      "cover": "https://bookcover.yuewen.com/qdbimg/349573/1042108416/180",
+      "detailUrl": "https://m.qidian.com/book/1042108416/",
+      "status": "",
+      "id": "元始法则|飞天鱼",
+      "platform": "qidian"
+    },
+    {
+      "title": "山君有令",
+      "author": "红金弓背蚁",
+      "genre": "诸天无限",
+      "rank": 18,
+      "cover": "https://bookcover.yuewen.com/qdbimg/349573/1051101619/180",
+      "detailUrl": "https://m.qidian.com/book/1051101619/",
+      "status": "",
+      "id": "山君有令|红金弓背蚁",
+      "platform": "qidian"
+    },
+    {
+      "title": "诡秘之主",
+      "author": "爱潜水的乌贼",
+      "genre": "玄幻",
+      "rank": 19,
+      "cover": "https://bookcover.yuewen.com/qdbimg/349573/1010868264/180",
+      "detailUrl": "https://m.qidian.com/book/1010868264/",
+      "status": "",
+      "id": "诡秘之主|爱潜水的乌贼",
+      "platform": "qidian"
+    },
+    {
+      "title": "星河之主",
+      "author": "烽仙",
+      "genre": "玄幻",
+      "rank": 20,
+      "cover": "https://bookcover.yuewen.com/qdbimg/349573/1047654482/180",
+      "detailUrl": "https://m.qidian.com/book/1047654482/",
+      "status": "",
+      "id": "星河之主|烽仙",
+      "platform": "qidian"
+    }
+  ]
+}

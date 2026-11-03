@@ -16,6 +16,9 @@ app.setPath('userData',libraryPath);
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.json':'application/json'};
 const external=url=>{try{const u=new URL(url);if(['https:','http:'].includes(u.protocol))shell.openExternal(u.href);}catch{}};
 let window;
+// Reopening a shortcut should focus the reader, not open the same database twice.
+if(!app.requestSingleInstanceLock())app.exit(0);
+app.on('second-instance',()=>{if(window){if(window.isMinimized())window.restore();window.show();window.focus();}});
 app.whenReady().then(()=>{
 protocol.handle('shiye',async request=>{
   const url=new URL(request.url);

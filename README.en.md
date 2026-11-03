@@ -1,291 +1,39 @@
-# Novel Archive Assistant
+# Shiye · 拾页
 
-[中文说明](README.md)
+[Download for Windows, Android and iOS](https://github.com/yifanchen12/shiye/releases/latest) · [中文说明](README.md)
 
-Novel Archive Assistant is a local TXT novel archiving tool for personal library management. It scans user-approved ranking pages, catalogs, and download sources, downloads completed works, stores them by category, and controls intake through storage limits, category filters, duplicate detection, and completeness checks.
+Shiye combines a novel catalog with a local reader. Discover books by category, browse Qidian / Fanqie / Jinjiang lists, search by title, and save books to the current device.
 
-> Compliance notice: This project does not bundle piracy sources and does not encourage downloading unauthorized content. Only configure sources that you are legally allowed to use, such as public-domain content, personal backups, or officially authorized download sources.
+## Install
 
-## Features
+- **Windows 10 / 11 x64:** download `shiye-windows-x64.zip`, extract the entire folder, and run `拾页.exe`. Keep the accompanying files.
+- **Android:** install `shiye-android.apk`. Back up your library before upgrading preview builds, since their signing certificates may differ.
+- **iPhone / iPad:** download `shiye-ios-unsigned.ipa` and sign it using your own valid signing method. Downloading an unsigned IPA in Safari does not install it. No App Store release is required.
 
-- Automated ranking crawl: scan configured book lists until the scan limit or archive size limit is reached.
-- Multiple download sources: built-in support for `10000txt`, `7shutxt`, `txt80`, configurable generic HTML sources, direct/local files, and an authorized Z-Library academic source.
-- Local archiving: store books by category with the file name format `Title - Author.extension`.
-- Storage limit: set the maximum archive size, such as `50GB` or `800MB`.
-- Category filtering: archive all categories, male-oriented categories, female-oriented categories, or a custom genre list.
-- Academic categories: authorized Z-Library academic files are stored under categories such as `学术-数学`, `学术-计算机`, and `学术-医学`.
-- Trusted completed lists: default completed ranking sources can skip strict ending-signal checks to improve intake rate.
-- Completeness safeguards: still blocks very small files and obvious unfinished-tail signals such as `未完待续` or `连载中`.
-- Duplicate tracking: manifest-based tracking prevents repeated downloads.
-- Multiple entry points: command line, local Web/API service, and Windows desktop launcher.
+The installed applications connect directly to sources. Running the reader does not require a separate computer service, Python, Node, or proxy application.
 
-## Project Layout
+## Read and discover
 
-```text
-novel_archiver/
-  archive.py        Local archive, capacity checks, manifest management
-  cli.py            Command-line entry point
-  completeness.py   TXT completeness checks
-  config.py         TOML parsing and settings persistence
-  downloader.py     Download source resolution and file download
-  server.py         Local Web/API service
-  service.py        Core orchestration
-  sources.py        Ranking source parsers
-launcher.py         Windows desktop launcher
-config.example.toml Default configuration template
-tests/              Unit tests
-```
+- Browse general, male-oriented and female-oriented categories and common genres. Categories use source metadata rather than guesses based on book titles.
+- Scroll to append additional real catalog pages; duplicate books are merged. Failed pages can be retried without skipping them.
+- Official lists retain their original ranks. Cached lists show their retrieval time.
+- Missing covers use a blue-gray title-and-author design.
+- Choose **paper curl**, **horizontal page sliding**, or **continuous vertical scrolling**. Reading position is shared across modes.
+- Adjust font, size, line spacing and six backgrounds. Resume where you left off.
+- Import or export TXT files; back up and restore the library as JSON.
 
-## Installation
+Books enter the local library only after a successful complete download. Failed chapters may be read from another enabled source only when the book, author and chapter match unambiguously.
 
-Python 3.11 or newer is recommended. The current project has been verified with a Python 3.14 virtual environment.
+## Local data
 
-```powershell
-py -3.14 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-Copy-Item config.example.toml config.toml
-```
+Books and reading progress stay on the current device. On Windows the data directory is `%APPDATA%\ShiyeReader`. Back up before uninstalling or clearing application data. Catalog discovery currently uses the public qb5200 completed-book directory; fine-grained genres depend on the source metadata.
 
-After installation, edit `config.toml` to confirm your archive path, storage limit, category policy, and authorized sources.
+## Build
 
-## Quick Start
+See [`mobile/README.md`](mobile/README.md). The original Python archiving tools remain in `novel_archiver/`. Personal `config.toml` files and credentials are not included in releases.
 
-Dry run mode validates the configured sources and download flow without writing files:
+## Credits
 
-```powershell
-.\.venv\Scripts\python.exe -m novel_archiver --config config.toml --dry-run
-```
+UI organization references [shadcn/ui](https://github.com/shadcn-ui/ui). Paper-fold geometry uses [StPageFlip](https://github.com/Nodlik/StPageFlip); platform containers use [Capacitor](https://github.com/ionic-team/capacitor) and [Electron](https://github.com/electron/electron).
 
-Run a real archive crawl:
-
-```powershell
-.\.venv\Scripts\python.exe -m novel_archiver --config config.toml
-```
-
-Limit the number of scanned candidates:
-
-```powershell
-.\.venv\Scripts\python.exe -m novel_archiver --config config.toml --limit 50
-```
-
-Start the local Web service:
-
-```powershell
-.\.venv\Scripts\python.exe -m novel_archiver --config config.toml --serve
-```
-
-Default URL:
-
-```text
-http://127.0.0.1:8765/
-```
-
-Windows users can also run:
-
-```text
-NovelArchiveLauncher.exe
-```
-
-The launcher opens the local page and can automatically start crawling according to the `[launcher]` section. The top of the launcher window lets you edit the archive path, size limit, and category intake policy. Changes are written to `config.toml`; if the service was started by the launcher, they take effect immediately.
-
-## Core Configuration
-
-### Archive Path and Capacity
-
-```toml
-[archive]
-root = "E:\\xiaoshuo"
-max_bytes = "50GB"
-manifest_name = ".novel_manifest.json"
-```
-
-- `root`: local archive directory.
-- `max_bytes`: maximum archive size. Supported units: `B`, `KB`, `MB`, `GB`, `TB`.
-- `manifest_name`: duplicate tracking file.
-
-### Category Policy
-
-```toml
-[filters]
-max_books_per_source = 10000
-completed_statuses = ["完本", "已完结", "已完成", "completed", "complete", "finished"]
-category_preset = "all"
-allowed_genres = []
-```
-
-Supported `category_preset` values:
-
-- `all`: archive every category.
-- `male`: only archive male-oriented categories.
-- `female`: only archive female-oriented categories.
-- `custom`: only archive genres listed in `allowed_genres`.
-
-Custom genre example:
-
-```toml
-category_preset = "custom"
-allowed_genres = ["玄幻", "都市", "科幻"]
-```
-
-### Completeness Policy
-
-```toml
-[completeness]
-min_bytes = 102400
-min_chapters = 20
-require_ending_signal = true
-```
-
-Regular sources are checked by file size, chapter count, final chapter title, and ending signals. Default completed ranking sources use `trust_completed = true`, so they skip chapter-count, final-title, and mandatory ending-signal checks. They still block files that are too small or contain obvious unfinished-tail signals.
-
-### Launcher Behavior
-
-```toml
-[launcher]
-open_browser = true
-auto_crawl_on_start = true
-```
-
-- `open_browser`: open the local page when the desktop launcher starts.
-- `auto_crawl_on_start`: start archive crawling automatically.
-
-## Default Sources
-
-The default template enables three ranking sources:
-
-- `10000txt_home_recommend`
-- `7shutxt_recommend`
-- `txt80_all_books`
-
-These sources use:
-
-```toml
-trust_completed = true
-```
-
-This treats them as completed-book lists for a higher automatic intake rate. If you prefer stricter TXT validation, set `trust_completed` to `false` for the corresponding source.
-
-Every source must explicitly declare authorization:
-
-```toml
-authorized = true
-license_note = "Explain why this source may be downloaded, such as public-domain content, site authorization, or personal backup rights"
-```
-
-Sources without authorization metadata are skipped.
-
-## Authorized Z-Library Academic Source
-
-The template includes an opt-in configuration for `https://z-library.im/`, but it is disabled by default and does not participate in automatic library building. This is intentional: logged-in Z-Library accounts usually have daily download limits, and many files are PDF/EPUB academic books rather than TXT novels.
-
-Before using it:
-
-1. Open `https://z-library.im/` in your browser and log in with your authorized account.
-2. Export your login cookies in Netscape cookie-file format.
-3. Save the cookie file as `secrets/zlibrary.cookies.txt`.
-4. Keep `secrets/` private; it is ignored by `.gitignore`.
-
-Default configuration:
-
-```toml
-[[ranking_sources]]
-name = "zlibrary_im_academic_daily"
-type = "zlibrary_web"
-enabled = false
-authorized = true
-base_url = "https://z-library.im/"
-cookie_file = "secrets/zlibrary.cookies.txt"
-search_queries = ["高等数学"]
-daily_auto_download_limit = 0
-default_genre = "学术-综合"
-trust_completed = true
-academic_only = true
-
-[[download_sources]]
-name = "zlibrary_im"
-type = "zlibrary_web_search"
-enabled = false
-authorized = true
-base_url = "https://z-library.im/"
-cookie_file = "secrets/zlibrary.cookies.txt"
-default_genre = "学术-综合"
-trust_completed = true
-academic_only = true
-```
-
-To opt into daily academic intake, enable both blocks and set a daily quota:
-
-```toml
-enabled = true
-daily_auto_download_limit = 3
-search_queries = ["高等数学", "Linear Algebra", "Machine Learning"]
-```
-
-Successful downloads are counted in the manifest by source and date, so repeated runs on the same day will not exceed `daily_auto_download_limit`. Files are stored in academic category folders such as `学术-数学` or `学术-计算机`.
-
-For manual launcher searches such as `高等数学`, you do not need to enable `zlibrary_im_academic_daily`; prepare the cookie file and set `zlibrary_im.enabled = true` under `download_sources`. Being logged in inside Chrome does not log in the Python process automatically; the program only uses the cookies in `cookie_file`.
-
-For a more conservative offline workflow, use `zlibrary_catalog`: manually export a catalog of already authorized files or local paths, then let the archiver import them. See [samples/zlibrary_config_snippet.example.toml](samples/zlibrary_config_snippet.example.toml).
-
-## API
-
-The local service provides these endpoints:
-
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/api/search?title=Title&author=Author` | Search the local archive only |
-| `GET` | `/api/ensure?title=Title&author=Author` | Search and download if missing |
-| `POST` | `/api/ensure` | JSON body with `title`, `author`, and `genre` |
-| `GET` | `/api/settings` | Read archive and category settings |
-| `POST` | `/api/settings` | Update archive and category settings |
-| `GET` | `/api/status` | Read path, size, and runtime status |
-
-Example `POST /api/settings` body:
-
-```json
-{
-  "archive_root": "D:\\novels",
-  "max_size": "80GB",
-  "category_preset": "custom",
-  "allowed_genres": ["玄幻", "都市", "科幻"]
-}
-```
-
-## Common Status Values
-
-- `downloaded`: file was downloaded and written to the local archive.
-- `dry_run`: validation passed without writing files.
-- `exists`: the book already exists locally.
-- `full`: the archive size limit has been reached and crawling stops.
-- `category_filtered`: the book does not match the category policy.
-- `source_not_configured`: no usable download source is enabled.
-- `not_found`: no exact match was found in enabled sources.
-- `skipped`: skipped by completion or metadata rules.
-
-## Development
-
-Run unit tests:
-
-```powershell
-.\.venv\Scripts\python.exe -m unittest discover -v
-```
-
-Run compile checks:
-
-```powershell
-.\.venv\Scripts\python.exe -m compileall novel_archiver launcher.py
-```
-
-Rebuild the Windows launcher:
-
-```powershell
-.\.venv\Scripts\python.exe -m PyInstaller --noconfirm NovelArchiveLauncher.spec
-Copy-Item dist\NovelArchiveLauncher.exe NovelArchiveLauncher.exe -Force
-```
-
-## License and Responsibility
-
-This project is a local archiving automation framework. Users are responsible for verifying source authorization, copyright status, site terms, and the legality of their own download behavior.
-
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for the copyright notice.
+[MIT License](LICENSE). Book covers and content remain the property of their respective rights holders.

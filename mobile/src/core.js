@@ -1,4 +1,5 @@
 export const normalize = value => String(value || '').normalize('NFKC').toLowerCase().replace(/[\s《》〈〉【】「」『』·.,，。:：_\-]/g, '');
+export const isPlaceholderCover=url=>/\/(?:no[-_]?cover|no[-_]?image|default[-_]?(?:book|cover))(?:[./?]|$)|\/novel-static\/5cb03bd354145bc7815a5e09d4b15cfc(?:[/?]|$)/i.test(String(url||''));
 export const bookId = book => `${normalize(book.title)}|${normalize(book.author)}`;
 export const escapeHTML = text => String(text ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function webURL(value, base) {

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {splitChapters,chapterAt,decodeText,sameBook,coverPlaceholder,webURL} from '../src/core.js';
+import {splitChapters,chapterAt,decodeText,sameBook,coverPlaceholder,webURL,isPlaceholderCover} from '../src/core.js';
 test('分章偏移无丢字，支持前言与中文章节',()=>{
  const text='前言文字\n\n第一章 初遇\n正文甲\n第二章 回声\n正文乙🌙';
  const parts=splitChapters(text);assert.equal(parts.length,3);assert.equal(parts.map(c=>text.slice(c.start,c.end)).join(''),text);
@@ -23,4 +23,7 @@ test('占位封面正确转义，拒绝非网络 URL',()=>{
  assert.equal(webURL('javascript:alert(1)','https://example.com/'),'');
  assert.equal(webURL('','https://example.com/book/1/'),'');
  assert.equal(webURL('   ','https://example.com/book/1/'),'');
+ assert.equal(isPlaceholderCover('https://p1-tt.byteimg.com/origin/novel-static/5cb03bd354145bc7815a5e09d4b15cfc'),true);
+ assert.equal(isPlaceholderCover('https://www.qb5200.org/images/nocover.jpg'),true);
+ assert.equal(isPlaceholderCover('https://www.qb5200.org/images/1/123/123s.jpg'),false);
 });

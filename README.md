@@ -1,243 +1,72 @@
-# 小说归档助手
+<div align="center">
 
-[English](README.en.md)
+# 拾页 · Shiye
 
-## 手机独立版：拾页
+找一本想读的书，留在自己的书架里。
 
-[手机浏览器下载 APK / 自行签名 IPA](https://github.com/yifanchen12/-txt-/releases/latest)
+[下载安装](https://github.com/yifanchen12/shiye/releases/latest) · [使用说明](#怎么用) · [源码构建](mobile/README.md)
 
-新增网站式书城、起点/番茄/晋江分区榜单与封面、手机直连书源、本地书架和离线阅读。安卓安装 APK；iPhone 的 unsigned IPA 需用户自行签名后安装，应用运行不依赖电脑。
+</div>
 
-[安装、阅读与构建说明](mobile/README.md)
+拾页是一个小说书城和本地阅读器，支持 Windows、Android 和 iOS。按分类发现新书，搜索书名，下载到当前设备后继续阅读。应用自带界面，联网时直接连接书源，不需要另外安装 Python、Node 或代理软件。
 
+## 下载与安装
 
-小说归档助手是一个面向个人书库管理的本地归档工具。它可以从用户明确确认有权使用的榜单、书目、网页搜索源和本地目录中检索作品，按分类写入本地书库，并通过容量上限、分类过滤、重复检测、完整性检查和每日下载限额控制入库质量。
-
-> 合规说明：本项目不内置无授权内容，也不鼓励或协助下载无授权内容。请只配置你拥有下载权、备份权、公共版权使用权，或已获得站点/机构授权的来源。用户需要自行确认来源授权、版权状态和站点条款。
-
-## 功能概览
-
-- 自动滚榜：持续扫描已授权榜单，直到达到扫描上限、每日下载上限或本地容量上限。
-- 多源下载：支持默认 TXT 下载源、通用 HTML 源、候选书直链/本地文件，以及授权 Z-Library 学术源。
-- 本地归档：按分类创建目录，文件名格式为 `书名 - 作者.扩展名`。
-- 容量控制：可设置本地书库最大容量，例如 `50GB`、`800MB`。
-- 分类过滤：支持全部类别、只存男频、只存女频、自定义分类。
-- 学术分类：Z-Library 学术资料会归入 `学术-数学`、`学术-计算机`、`学术-医学` 等目录。
-- 完整性保护：TXT 会检查文件大小、章节、结尾信号；PDF/EPUB 等非文本学术文件在授权可信来源下按文件大小和元数据入库。
-- 去重记录：使用 manifest 记录已入库书籍，避免重复下载。
-- 多入口使用：命令行、本地 Web/API 服务和 Windows 桌面启动器。
-
-## 安装
-
-建议使用 Python 3.11 或更新版本。当前项目已在 Python 3.14 虚拟环境中验证。
-
-```powershell
-py -3.14 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-Copy-Item config.example.toml config.toml
-```
-
-安装后请编辑 `config.toml`，确认存储路径、容量上限、分类策略和授权来源。
-
-## 快速运行
-
-试跑模式不会写入文件：
-
-```powershell
-.\.venv\Scripts\python.exe -m novel_archiver --config config.toml --dry-run
-```
-
-正式入库：
-
-```powershell
-.\.venv\Scripts\python.exe -m novel_archiver --config config.toml
-```
-
-限制本次扫描数量：
-
-```powershell
-.\.venv\Scripts\python.exe -m novel_archiver --config config.toml --limit 50
-```
-
-启动本地 Web 服务：
-
-```powershell
-.\.venv\Scripts\python.exe -m novel_archiver --config config.toml --serve
-```
-
-Windows 用户也可以直接双击：
-
-```text
-NovelArchiveLauncher.exe
-```
-
-启动器会打开本地页面，并根据 `[launcher]` 配置自动开始滚榜入库。窗口顶部可以修改存储位置、容量上限和入库范围；保存后写入 `config.toml`。
-
-## 核心配置
-
-### 归档目录和容量
-
-```toml
-[archive]
-root = "E:\\xiaoshuo"
-max_bytes = "50GB"
-manifest_name = ".novel_manifest.json"
-```
-
-- `root`：本地书库目录。
-- `max_bytes`：最大容量，支持 `B`、`KB`、`MB`、`GB`、`TB`。
-- `manifest_name`：去重和下载统计文件名。
-
-### 分类策略
-
-```toml
-[filters]
-max_books_per_source = 10000
-completed_statuses = ["完本", "已完结", "已完成", "completed", "complete", "finished"]
-category_preset = "all"
-allowed_genres = []
-```
-
-`category_preset` 可选值：
-
-- `all`：全部类别。
-- `male`：只存男频。
-- `female`：只存女频。
-- `custom`：只存 `allowed_genres` 中列出的分类。
-
-自定义分类示例：
-
-```toml
-category_preset = "custom"
-allowed_genres = ["玄幻", "都市", "科幻", "学术-数学"]
-```
-
-### 完整性策略
-
-```toml
-[completeness]
-min_bytes = 102400
-min_chapters = 20
-require_ending_signal = true
-```
-
-默认完本榜源设置了 `trust_completed = true`，会跳过强制 TXT 结尾完本信号检查，但仍会拦截过小文件和明显未完结信号。PDF、EPUB、MOBI 等非文本书籍只有在可信授权源中才会按非文本文件入库。
-
-## Z-Library 授权学术源
-
-项目已提供 `https://z-library.im/` 的授权学术源配置，但默认关闭，不参与自动建库。原因是该类来源通常存在账号下载限制，并且文件多为 PDF/EPUB，不适合和 TXT 小说默认滚榜混在一起自动消耗额度。
-
-首次使用前需要：
-
-1. 在浏览器打开 `https://z-library.im/` 并登录你的已授权账号。
-2. 使用浏览器 Cookie 导出工具导出 Netscape 格式 Cookie。
-3. 将 Cookie 保存为 `secrets/zlibrary.cookies.txt`。
-4. 确认 `secrets/` 已被 `.gitignore` 忽略，不要提交 Cookie。
-
-默认配置如下：
-
-```toml
-[[ranking_sources]]
-name = "zlibrary_im_academic_daily"
-type = "zlibrary_web"
-enabled = false
-authorized = true
-base_url = "https://z-library.im/"
-cookie_file = "secrets/zlibrary.cookies.txt"
-search_queries = ["高等数学"]
-daily_auto_download_limit = 0
-default_genre = "学术-综合"
-trust_completed = true
-academic_only = true
-
-[[download_sources]]
-name = "zlibrary_im"
-type = "zlibrary_web_search"
-enabled = false
-authorized = true
-base_url = "https://z-library.im/"
-cookie_file = "secrets/zlibrary.cookies.txt"
-default_genre = "学术-综合"
-trust_completed = true
-academic_only = true
-```
-
-如需让它参与每日建库：
-
-```toml
-enabled = true
-daily_auto_download_limit = 3
-search_queries = ["高等数学", "线性代数", "机器学习"]
-```
-
-同时把 `download_sources` 中的 `zlibrary_im.enabled` 改为 `true`。程序会把成功下载数写入 manifest，同一天重复运行不会超过 `daily_auto_download_limit`。学术文件会按主题存入 `学术-数学`、`学术-计算机`、`学术-经济管理` 等目录。
-
-如果只是想在启动器里手动输入 `高等数学` 这类书名并下载，不需要开启 `zlibrary_im_academic_daily`；只需要准备 Cookie，并把 `download_sources` 里的 `zlibrary_im.enabled` 改为 `true`。浏览器已经登录并不代表程序已登录，程序只读取 `cookie_file` 中的登录 Cookie。
-
-离线或更保守的方式是使用 `zlibrary_catalog`：先手动导出你已授权下载的书目 JSON，记录本地文件路径或授权直链，再让程序从本地目录入库。示例见 [samples/zlibrary_config_snippet.example.toml](samples/zlibrary_config_snippet.example.toml)。
-
-## 默认来源
-
-默认模板启用三个小说榜单：
-
-- `10000txt_home_recommend`
-- `7shutxt_recommend`
-- `txt80_all_books`
-
-这些榜单设置了：
-
-```toml
-trust_completed = true
-```
-
-这表示程序默认信任它们为完本榜单，提高自动入库效率。每个来源都必须声明授权：
-
-```toml
-authorized = true
-license_note = "说明该来源为何可被下载，例如公共版权、站点授权或个人备份"
-```
-
-未声明授权信息的来源会被跳过。
-
-## API
-
-| 方法 | 路径 | 说明 |
+| 设备 | 下载 | 打开方式 |
 | --- | --- | --- |
-| `GET` | `/api/search?title=书名&author=作者` | 只检索本地书库 |
-| `GET` | `/api/ensure?title=书名&author=作者` | 本地缺失时自动搜索并下载 |
-| `POST` | `/api/ensure` | JSON 请求体，字段为 `title`、`author`、`genre` |
-| `GET` | `/api/settings` | 读取存储和分类设置 |
-| `POST` | `/api/settings` | 写入存储和分类设置 |
-| `GET` | `/api/status` | 查看容量、路径和运行状态 |
+| Windows 10 / 11（64 位） | [Windows 程序](https://github.com/yifanchen12/shiye/releases/latest/download/shiye-windows-x64.zip) | 右键“全部解压”，打开文件夹，双击 `拾页.exe`。旁边的文件也要保留。 |
+| Android | [APK](https://github.com/yifanchen12/shiye/releases/latest/download/shiye-android.apk) | 下载后安装，按系统提示允许浏览器安装应用。 |
+| iPhone / iPad | [未签名 IPA](https://github.com/yifanchen12/shiye/releases/latest/download/shiye-ios-unsigned.ipa) | Safari 下载到“文件”，用自己的有效签名方式签名后安装。 |
 
-## 常见状态
+**iPhone 下载 IPA 不等于安装完成。** 当前提供的是未签名包，不走 App Store，需要自行签名。签名安装完成后，搜索、下载和阅读不依赖电脑。
 
-- `downloaded`：已成功下载并写入本地书库。
-- `dry_run`：试跑通过，未写入文件。
-- `exists`：本地已存在该书。
-- `full`：容量达到上限，滚榜停止。
-- `category_filtered`：不符合分类设置。
-- `source_not_configured`：未启用可用下载源。
-- `not_found`：已启用来源中未找到精确匹配。
-- `skipped`：被完整性、状态或配额规则跳过。
+安卓目前使用预览签名。更新前先在书架备份；如果系统提示签名不一致，备份后再卸载旧版安装。
 
-## 开发和测试
+## 怎么用
 
-```powershell
-.\.venv\Scripts\python.exe -m unittest discover -v
-.\.venv\Scripts\python.exe -m compileall novel_archiver launcher.py
-```
+### 找书
 
-重新打包 Windows 启动器：
+- **分类**：在推荐区上方选择“全部／男频／女频”，再选择题材。男频包括玄幻、仙侠武侠、都市、历史、科幻、游戏、悬疑；女频包括言情、现代言情、古代言情、幻想言情、青春校园和纯爱。
+- **热榜**：起点、番茄、晋江分开显示，保留官方名次。官网临时无法读取时，已有的官方记录会标明“缓存”和原始时间。
+- **持续推荐**：向下滑动，自动接着读取后续书目，不停留在前 24 本；重复书目会合并。加载失败时可以重试，到了来源末页会提示。
+- **搜索**：输入书名，打开书籍详情，选择“下载并保存到本机”。完整下载后才加入书架。
 
-```powershell
-.\.venv\Scripts\python.exe -m PyInstaller --noconfirm NovelArchiveLauncher.spec
-Copy-Item dist\NovelArchiveLauncher.exe NovelArchiveLauncher.exe -Force
-```
+封面优先使用来源中的真实图片，缺失时显示带书名和作者的蓝灰书封。分类依据来源标签；只标为“言情”的书归入“言情”，不按书名猜成古言或现言。
 
-## 许可和责任
+### 阅读
 
-本项目仅提供本地归档自动化框架。用户需要自行确认来源授权、版权状态、站点条款和下载行为合法性，并对自己的配置和使用负责。
+在本地书架打开一本书，点右上角 **Aa 设置**：
 
-本项目采用 MIT License。版权声明见 [LICENSE](LICENSE)。
+| 翻页方式 | 效果 |
+| --- | --- |
+| 仿真 | 纸张随手势卷起，纸背文字淡化、镜像并虚化，带折痕和阴影。 |
+| 左右滑动 | 整页横向移动，停在下一页。 |
+| 上下滑动 | 正文连续纵向滚动，继续衔接后续章节。 |
+
+三种模式共用阅读位置，切换模式、字号或行距后接着读。支持目录、宋体／黑体、六种阅读背景和进度恢复。
+
+### 管理书架
+
+- **导入 TXT**：从设备选择文件，也可以直接粘贴正文。
+- **导出**：把一本书导出为 TXT。
+- **备份书库**：导出 JSON 备份，在另一台设备中选择“恢复备份”。
+
+正文、封面和进度保存在当前设备。Windows 版使用 `%APPDATA%\ShiyeReader`，更换程序文件夹不会清空书库。换手机、卸载应用或清理数据前，先备份。
+
+## 书源
+
+应用使用已启用的书源规则，下载前核对书名和作者。长篇某章读取失败时，会尝试从其他启用来源补读同书、同作者、唯一匹配的章节；全部失败则报错，不把缺章文件显示为下载完成。
+
+不同书源的可用性会变化。书源设置中可以关闭不想使用的来源；分类书目目前由 qb5200 的公开完本目录提供。细分类信息不完整时，可以切回大类继续浏览。
+
+个人 `config.toml` 不提交到仓库，安装包只包含公开的非敏感规则。
+
+## 开发
+
+主要界面和三个平台的构建在 [`mobile/`](mobile/) 中，见[开发说明](mobile/README.md)。原有 Python 归档脚本仍保留在 `novel_archiver/`，配置示例见 [`config.example.toml`](config.example.toml)。
+
+## 参考与许可
+
+界面布局参考 [shadcn/ui](https://github.com/shadcn-ui/ui) 的导航、卡片和抽屉组织方式；仿真折纸几何基于 [StPageFlip](https://github.com/Nodlik/StPageFlip)。手机容器使用 [Capacitor](https://github.com/ionic-team/capacitor)，Windows 容器使用 [Electron](https://github.com/electron/electron)。
+
+本项目采用 [MIT License](LICENSE)。封面与书籍内容的权利归相应权利人，请只保存你有权使用的内容。

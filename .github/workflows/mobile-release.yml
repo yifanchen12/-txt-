@@ -35,7 +35,9 @@ jobs:
         if: always()
         with:
           name: direct-source-report
-          path: mobile/.reports/direct-sources.json
+          path: |
+            mobile/.reports/direct-sources.json
+            mobile/.reports/discovery.json
 
   android:
     runs-on: ubuntu-latest
@@ -159,16 +161,17 @@ jobs:
           cd release
           sha256sum shiye-android.apk shiye-ios-unsigned.ipa shiye-windows-x64.zip shiye-web.zip > SHA256SUMS.txt
           cat > RELEASE_NOTES.md <<'NOTES'
-          拾页：网站式小说书城、三站分区榜单、封面、搜索、本机下载与离线阅读。
+          拾页：分类发现、持续推荐和本地阅读。
 
-          - Windows：下载 shiye-windows-x64.zip，解压整个文件夹，双击 拾页.exe。无需安装 Node、Python 或代理软件。
-          - 安卓：下载 shiye-android.apk 后安装。预览构建使用临时调试签名，升级前请备份书库。
-          - iPhone / iPad：下载 shiye-ios-unsigned.ipa 后自行签名安装。该文件为真实 iOS 设备编译的未签名 IPA，不能仅凭 Safari 下载就直接安装。
-          - 应用运行时直接连接书源，不依赖电脑或电脑上的 Python 服务。
-          - 本地书架支持 TXT 导入、章节目录、背景、字号、行距、仿真翻页、进度恢复及备份。
-          - 书源可能因当前网络或站点限制无法连接。榜单只将已匹配正文入口的完本作品列为可下载；只有完整下载后才加入本机书库。
-          - shiye-web.zip 为网页构建，联网检索需要配套的云端或本地代理，原生手机应用不需要该代理。
+          - Windows：全部解压 shiye-windows-x64.zip，双击 拾页.exe；无需另装运行环境。
+          - Android：安装 shiye-android.apk。更新预览版前先备份书库，签名不同可能需要重装。
+          - iPhone / iPad：shiye-ios-unsigned.ipa 为未签名包，需自行签名安装。
+          - 三种翻页：仿真纸张卷曲、左右整页滑动、上下连续滚动；切换后保留阅读位置。
+          - 推荐向下自动追加，新增男女频和常见题材分类，缺失封面显示书名书封。
+          - 支持 TXT 导入导出、背景、字号、行距、进度恢复和书库备份。
+          - 原生应用直接连接书源，运行不依赖电脑服务或代理软件。
+          - 网页构建 shiye-web.zip 的联网检索需要配套网页服务。
 
-          构建成功不等于已完成真机安装及各书源联网下载验证。
+          使用说明：https://github.com/yifanchen12/shiye#readme
           NOTES
-          gh release create "mobile-v1.0.0-${{ github.run_number }}" shiye-android.apk shiye-ios-unsigned.ipa shiye-windows-x64.zip shiye-web.zip SHA256SUMS.txt --title '拾页 1.0 · 手机与 Windows 本机版' --notes-file RELEASE_NOTES.md --latest
+          gh release create "shiye-v1.0.0-${{ github.run_number }}" shiye-android.apk shiye-ios-unsigned.ipa shiye-windows-x64.zip shiye-web.zip SHA256SUMS.txt --title '拾页 · 分类书城与三种翻页' --notes-file RELEASE_NOTES.md --latest

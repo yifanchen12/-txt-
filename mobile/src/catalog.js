@@ -1,7 +1,7 @@
 import defaults from './default-sources.json' with {type:'json'};
 import qidianSnapshot from './qidian-snapshot.json' with {type:'json'};
 import {text,request,coverData} from './network.js';
-import {normalize,bookId,webURL,decodeText,sameBook,completed,assertNotAborted} from './core.js';
+import {normalize,bookId,webURL,decodeText,sameBook,completed,assertNotAborted,isPlaceholderCover} from './core.js';
 import {getSetting,getCache,setCache} from './storage.js';
 
 export const PLATFORMS={qidian:{name:'起点',label:'畅销榜',url:'https://m.qidian.com/rank/hotsales/',color:'#a54231'},fanqie:{name:'番茄',label:'阅读榜',url:'https://fanqienovel.com/rank',color:'#c3693b'},jinjiang:{name:'晋江',label:'总分榜',url:'https://www.jjwxc.net/topten.php?orderstr=7',color:'#447761'}};
@@ -17,7 +17,8 @@ function plain(node) {
 const regexValue=(str,pattern)=>{try{const m=pattern&&str.match(new RegExp(pattern,'m'));return (m?.[1]||m?.[0]||'').trim();}catch{return '';}};
 const meta=(doc,...names)=>{for(const name of names){const n=select(doc,`meta[property="${name}"],meta[name="${name}"]`);if(n?.content)return n.content.trim();}return '';};
 export function findCover(doc,url) {
-  return webURL(meta(doc,'og:image','og:novel:image')||select(doc,'img.noveldefaultimage,.book-cover img,img.book-cover-img,#fmimg img,.book-img img,.cover img,.pic img,img[itemprop="image"]')?.getAttribute('data-src')||select(doc,'img.noveldefaultimage,.book-cover img,img.book-cover-img,#fmimg img,.book-img img,.cover img,.pic img,img[itemprop="image"]')?.getAttribute('src')||'',url);
+  const urlValue=webURL(meta(doc,'og:image','og:novel:image')||select(doc,'img.noveldefaultimage,.book-cover img,img.book-cover-img,#fmimg img,.book-img img,.cover img,.pic img,img[itemprop="image"]')?.getAttribute('data-src')||select(doc,'img.noveldefaultimage,.book-cover img,img.book-cover-img,#fmimg img,.book-img img,.cover img,.pic img,img[itemprop="image"]')?.getAttribute('src')||'',url);
+  return isPlaceholderCover(urlValue)?'':urlValue;
 }
 function tidyTitle(title) {return title.replace(/^[《【]|[》】]$/g,'').replace(/(?:TXT|txt)电子书下载.*$|(?:TXT|txt)下载.*$/g,'').trim();}
 export function parseSourceDetail(html,url,source,fallback={}) {

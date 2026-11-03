@@ -1,5 +1,5 @@
 import {Capacitor,CapacitorHttp} from '@capacitor/core';
-import {decodeText,webURL,assertNotAborted} from './core.js';
+import {decodeText,webURL,assertNotAborted,isPlaceholderCover} from './core.js';
 export const native = Capacitor.isNativePlatform();
 async function requestOnce(url,{method='GET',body,signal,timeout=18000}={}) {
   assertNotAborted(signal);
@@ -50,7 +50,7 @@ export async function text(url,options={}) {
   return decodeText(r.bytes,hint);
 }
 export async function coverData(url,signal) {
-  if(!url)return '';
+  if(!url||isPlaceholderCover(url))return '';
   try {
     const {bytes,headers}=await request(url,{signal,timeout:10000});
     if(bytes.length>3*1024*1024)return '';

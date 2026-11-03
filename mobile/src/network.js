@@ -1,7 +1,7 @@
 import {Capacitor,CapacitorHttp} from '@capacitor/core';
 import {decodeText,webURL,assertNotAborted} from './core.js';
 export const native = Capacitor.isNativePlatform();
-export async function request(url,{method='GET',body,signal,timeout=18000}={}) {
+async function requestOnce(url,{method='GET',body,signal,timeout=18000}={}) {
   assertNotAborted(signal);
   if (!webURL(url)) throw new Error('书源地址格式不正确');
   let bytes,headers,status;
@@ -18,14 +18,26 @@ export async function request(url,{method='GET',body,signal,timeout=18000}={}) {
       status=r.status;headers=Object.fromEntries(r.headers.entries());bytes=new Uint8Array(await r.arrayBuffer());
     } catch(e) {
       if(signal?.aborted)throw new DOMException('操作已取消','AbortError');
-      if(e.name==='AbortError')throw new Error('书源连接超时，请稍后重试');
-      throw new Error('当前网络无法连接书源，请检查网络后重试');
+      if(e.name==='AbortError')throw Object.assign(new Error('书源连接超时，请稍后重试'),{retryable:true});
+      throw Object.assign(new Error('当前网络无法连接书源，请检查网络后重试'),{retryable:true});
     } finally {clearTimeout(timer);signal?.removeEventListener('abort',abort);}
   }
   assertNotAborted(signal);
-  if((status<200||status>=300)&&headers['x-shiye-error']==='network')throw new Error(decodeText(bytes).slice(0,160));
-  if(status<200||status>=300)throw new Error(status===403?'书源暂时拒绝访问':`书源响应异常（${status}）`);
+  if((status<200||status>=300)&&headers['x-shiye-error']==='network')throw Object.assign(new Error(decodeText(bytes).slice(0,160)),{retryable:true});
+  if(status<200||status>=300)throw Object.assign(new Error(status===403?'书源暂时拒绝访问':`书源响应异常（${status}）`),{retryable:status===429||status>=500});
   return {bytes,headers};
+}
+export async function request(url,options={}) {
+  const retries=options.retries??2;
+  for(let attempt=0;;attempt++){
+    assertNotAborted(options.signal);
+    try{return await requestOnce(url,options);}catch(error){
+      if(error.name==='AbortError'||error.retryable===false||attempt>=retries)throw error;
+      if(!error.retryable&&!native)throw error;
+      await new Promise(resolve=>setTimeout(resolve,500*2**attempt));
+      assertNotAborted(options.signal);
+    }
+  }
 }
 export async function text(url,options={}) {
   const r=await request(url,options);

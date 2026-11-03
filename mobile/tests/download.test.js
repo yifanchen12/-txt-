@@ -22,3 +22,18 @@ test('取消后不继续获取正文',async()=>{
  globalThis.fetch=async()=>{called=true;return new Response('正文');};
  try{await assert.rejects(downloadBook({id:'b',title:'测试',prepared:{kind:'file',url:'https://example.com/book.txt'}},{signal:controller.signal}),e=>e.name==='AbortError');assert.equal(called,false);}finally{globalThis.fetch=previous;}
 });
+test('章节下载遇到临时502会重试，成功后才继续',async()=>{
+ const previous=globalThis.fetch;let attempts=0;
+ globalThis.fetch=async()=>++attempts===1?new Response('temporary',{status:502}):new Response('这是完整正文。'.repeat(300));
+ try{
+  const result=await downloadBook({id:'retry',title:'测试',author:'甲',prepared:{kind:'file',url:'https://example.com/book.txt'}});
+  assert.equal(attempts,2);assert.ok(result.text.length>1000);
+ }finally{globalThis.fetch=previous;}
+});
+test('源站转码失败提示不能作为章节正文保存',async()=>{
+ const previous=globalThis.fetch;
+ globalThis.fetch=async()=>new Response('<html><body><article>转码失败！请切换源站阅读。</article></body></html>');
+ try{
+  await assert.rejects(downloadBook({id:'bad-content',title:'测试',sourceConfig:{chapter_content_selector:'article'},prepared:{kind:'chapters',chapters:[{title:'第一章',url:'https://example.com/1.html'}]}}),/没有可用正文/);
+ }finally{globalThis.fetch=previous;}
+});

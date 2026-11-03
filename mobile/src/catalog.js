@@ -176,9 +176,21 @@ export async function prepareDownload(book,signal) {
     const doc=documentOf(await text(url,{signal}));
     const seen=new Set(),chapters=[];
     let pattern;try{pattern=new RegExp(s.chapter_link_regex||'[.]html$');}catch{throw new Error('书源章节规则无效');}
-    for(const a of all(doc,s.chapter_list_selector||'ul.row a[href$=".html"]')){
-      const raw=a.getAttribute('href')||'',url=webURL(raw,book.detailUrl);
-      if(url&&pattern.test(raw)&&!seen.has(url)){seen.add(url);chapters.push({title:a.textContent.trim()||`第${chapters.length+1}章`,url});}
+    const directoryPath=new URL(book.detailUrl).pathname;
+    const pages=all(doc,'a[href]').map(a=>webURL(a.getAttribute('href'),url)).filter(Boolean).map(link=>({url:link,match:new URL(link).pathname.match(/^(.*\/index_)(\d+)(\.html)$/)})).filter(p=>p.match&&p.match[1].startsWith(directoryPath)&&new URL(p.url).origin===new URL(url).origin);
+    function append(document){
+      const root=pages.length?(select(document,'.book_list2')||document):document;
+      for(const a of all(root,s.chapter_list_selector||'ul.row a[href$=".html"]')){
+        const raw=a.getAttribute('href')||'',chapterURL=webURL(raw,book.detailUrl);
+        if(chapterURL&&pattern.test(raw)&&!seen.has(chapterURL)){seen.add(chapterURL);chapters.push({title:a.textContent.trim()||`第${chapters.length+1}章`,url:chapterURL});}
+      }
+    }
+    append(doc);
+    if(pages.length){
+      const last=Math.max(...pages.map(p=>Number(p.match[2])));
+      if(last>200)throw new Error('该源目录超过分页上限，未作为完整目录下载');
+      const template=pages[0],base=new URL(template.url).origin+template.match[1];
+      for(let page=2;page<=last;page++)append(documentOf(await text(base+page+template.match[3],{signal})));
     }
     if(chapters.length<(s.min_chapters||20))return null;
     await chapterText(chapters[0],s,signal);
@@ -207,7 +219,7 @@ async function chapterText(chapter,source,signal) {
     if(!node)throw new Error(`无法读取“${chapter.title}”，未保存不完整正文`);
     const lines=plain(node).split('\n').filter(line=>!/^第\(\d+\/\d+\)页/.test(line)&&!(source.skip_ad_keywords||['请收藏','最新网址','最新网址','加入书签']).some(k=>line.toLowerCase().includes(k.toLowerCase())));
     const content=lines.join('\n\n').trim();
-    if(!content||(/请(?:先)?订阅|购买本章|付费阅读/.test(content)&&content.length<600))throw new Error(`“${chapter.title}”没有可用正文`);
+    if(!content||/转码失败|章节不存在|内容已删除|源站不可用/.test(content)||(/请(?:先)?订阅|购买本章|付费阅读/.test(content)&&content.length<600))throw new Error(`“${chapter.title}”没有可用正文`);
     parts.push(content);
     const current=new URL(url),base=current.pathname.replace(/(?:_\d+)?\.html$/, '');
     const next=all(d,'a[href]').find(a=>{const u=webURL(a.getAttribute('href'),url);if(!u)return false;const p=new URL(u);return p.origin===current.origin&&p.pathname.startsWith(base+'_')&&/下一页|下页/.test(a.textContent)&&!seen.has(u);});
@@ -231,7 +243,8 @@ export async function downloadBook(book,{signal,onProgress=()=>{}}={}) {
     for(let i=0;i<prepared.chapters.length;i+=2){
       assertNotAborted(signal);
       await Promise.all(prepared.chapters.slice(i,i+2).map(async(ch,j)=>{
-        const body=await chapterText(ch,book.sourceConfig,signal);parts[i+j]=`${ch.title}\n\n${body}`;
+        let body;try{body=await chapterText(ch,book.sourceConfig,signal);}catch(error){if(error.name==='AbortError')throw error;throw new Error(`第 ${i+j+1}/${parts.length} 章“${ch.title}”读取失败：${error.message}`);}
+        parts[i+j]=`${ch.title}\n\n${body}`;
         onProgress({done:++done,total:parts.length,label:ch.title});
       }));
       await new Promise(resolve=>setTimeout(resolve,180));

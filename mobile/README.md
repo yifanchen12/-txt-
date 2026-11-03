@@ -1,11 +1,12 @@
-# 拾页：网站式书城与独立手机阅读器
+# 拾页：手机与 Windows 本地小说阅读器
 
-[手机浏览器下载 APK / IPA](https://github.com/yifanchen12/-txt-/releases/latest)
+[下载 APK / IPA / Windows 程序](https://github.com/yifanchen12/-txt-/releases/latest)
 
 应用内置前端和公开书源规则，手机通过原生 HTTP 直接连接书源，不需要安装 Clash 或配置代理。联网搜索、下载、本地阅读均不要求电脑开机，也不要求连接电脑上的 Python 服务。
 
 ## 安装
 
+- **Windows 电脑**：下载 `shiye-windows-x64.zip`，右键“全部解压”，打开解压后的文件夹，双击 `拾页.exe`。整个文件夹都要保留。程序自带运行环境，不用安装 Node、Python 或代理软件，也不用启动本地网页服务器。书库保存在当前 Windows 用户的 `%APPDATA%\ShiyeReader`；更换程序文件夹不会清空书库。适用于 Windows 10 / 11 x64。
 - **安卓**：下载 `shiye-android.apk`，允许该浏览器安装应用后打开。当前为使用自动生成调试签名的预览版，不同构建之间可能需要先备份书库再卸载旧版安装。
 - **iPhone / iPad**：下载 `shiye-ios-unsigned.ipa`。这是为真实 iOS 设备编译的**未签名 IPA**，需要用户使用自己的有效签名方式签名后安装。Safari 下载文件不等于完成安装。文件名、发行说明均明确标注未签名状态；无 App Store 流程。
 - 手机最低系统版本以当前 Capacitor 原生工程要求为准：本版本生成的 iOS 工程以 iOS 15 为目标；安卓要求 Android 7 / API 24 或更新。浏览器组件及系统过旧时请先更新系统 WebView。
@@ -59,6 +60,8 @@ node scripts/prepare-native.mjs
 `cloud/worker.js` 和 `wrangler.jsonc` 提供可选的独立云端网页运行入口，不依赖个人电脑；部署需要拥有相应云账号，源码交付不等于已部署。
 
 ## 安装包构建
+
+Windows 使用 Electron 封装同一书城与阅读器：`npm run package:windows`，输出 `desktop-out/拾页-win32-x64/拾页.exe`。窗口加载本机页面，通过隔离的请求桥和现有书源白名单直接读取内容；不打开系统端口、不依赖 Python 或 Vite。`--smoke-test` 会验证页面加载及书源直连，结果仅为状态元数据。
 
 仓库 `.github/workflows/mobile-release.yml` 在 GitHub 的 Linux 与 macOS 环境中编译。前端测试、安卓 APK 和 iOS device build 均成功后，才发布 GitHub Release。
 

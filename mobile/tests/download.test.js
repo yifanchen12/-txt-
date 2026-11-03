@@ -37,3 +37,21 @@ test('源站转码失败提示不能作为章节正文保存',async()=>{
   await assert.rejects(downloadBook({id:'bad-content',title:'测试',sourceConfig:{chapter_content_selector:'article'},prepared:{kind:'chapters',chapters:[{title:'第一章',url:'https://example.com/1.html'}]}}),/没有可用正文/);
  }finally{globalThis.fetch=previous;}
 });
+
+test('下一章标签的同章三页必须全部合并，并且不读取不同章节',async()=>{
+ const previous=globalThis.fetch,visited=[];
+ globalThis.fetch=async(_,options)=>{
+  const url=JSON.parse(options.body).url;visited.push(url);const n=Number(url.match(/_(\d+)\.html/)?.[1]||1);
+  return new Response(`<html><body><article>第(${n}/3)页<br>第${n}页正文</article><a href="${n<3?`/10_${n+1}.html`:'/11.html'}">下一章</a></body></html>`);
+ };
+ try{
+  const r=await downloadBook({id:'pages',title:'测试',sourceConfig:{chapter_content_selector:'article'},prepared:{kind:'chapters',chapters:[{title:'第一章',url:'https://example.com/10.html'}]}});
+  for(const n of [1,2,3])assert.ok(r.text.includes(`第${n}页正文`));assert.equal(visited.length,3);
+ }finally{globalThis.fetch=previous;}
+});
+
+test('页码提示还有正文但下一页链接丢失时拒绝完成',async()=>{
+ const previous=globalThis.fetch;
+ globalThis.fetch=async()=>new Response('<html><body><article>第(1/3)页<br>部分正文</article></body></html>');
+ try{await assert.rejects(downloadBook({id:'missing-page',title:'测试',sourceConfig:{chapter_content_selector:'article'},prepared:{kind:'chapters',chapters:[{title:'第一章',url:'https://example.com/10.html'}]}}),/缺少第 2\/3 页/);}finally{globalThis.fetch=previous;}
+});

@@ -10,3 +10,5 @@ ios/
 .env*
 
 .reports/
+.desktop-stage/
+desktop-out/

@@ -222,7 +222,12 @@ async function chapterText(chapter,source,signal) {
     if(!content||/转码失败|章节不存在|内容已删除|源站不可用/.test(content)||(/请(?:先)?订阅|购买本章|付费阅读/.test(content)&&content.length<600))throw new Error(`“${chapter.title}”没有可用正文`);
     parts.push(content);
     const current=new URL(url),base=current.pathname.replace(/(?:_\d+)?\.html$/, '');
-    const next=all(d,'a[href]').find(a=>{const u=webURL(a.getAttribute('href'),url);if(!u)return false;const p=new URL(u);return p.origin===current.origin&&p.pathname.startsWith(base+'_')&&/下一页|下页/.test(a.textContent)&&!seen.has(u);});
+    const pageNumber=Number(current.pathname.match(/_(\d+)\.html$/)?.[1]||1);
+    const pageCount=Number(d.body.textContent.match(/第\s*[（(]\s*\d+\s*\/\s*(\d+)\s*[）)]\s*页/)?.[1]||0);
+    // Some configured sources label an intra-chapter page as “下一章”.
+    // Exact next-page paths distinguish these from a different chapter.
+    const next=all(d,'a[href]').find(a=>{const u=webURL(a.getAttribute('href'),url);if(!u)return false;const p=new URL(u);return p.origin===current.origin&&p.pathname===`${base}_${pageNumber+1}.html`&&/下一页|下页|下一章/.test(a.textContent)&&!seen.has(u);});
+    if(pageCount>pageNumber&&!next)throw new Error(`“${chapter.title}”缺少第 ${pageNumber+1}/${pageCount} 页，未保存不完整正文`);
     url=next?webURL(next.getAttribute('href'),url):'';
   }
   return parts.join('\n\n');

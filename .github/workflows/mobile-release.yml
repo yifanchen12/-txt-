@@ -111,8 +111,40 @@ jobs:
           name: ios-unsigned
           path: mobile/release/shiye-ios-unsigned.ipa
 
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci --registry=https://registry.npmjs.org
+      - run: npm test
+      - run: npm run package:windows
+      - name: Verify independent Windows executable
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path 'desktop-out/拾页-win32-x64/拾页.exe').Path
+          $process = Start-Process -FilePath $exe -ArgumentList '--smoke-test' -WindowStyle Hidden -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw 'Windows startup or direct connection check failed' }
+          Get-Content -LiteralPath "$env:APPDATA/ShiyeReader/verification.json"
+      - name: Zip complete portable program
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path release -Force | Out-Null
+          Compress-Archive -Path 'desktop-out/拾页-win32-x64' -DestinationPath 'release/shiye-windows-x64.zip'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-portable
+          path: mobile/release/shiye-windows-x64.zip
+
   release:
-    needs: [android, ios, direct-sources]
+    needs: [android, ios, windows, direct-sources]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -125,10 +157,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd release
-          sha256sum shiye-android.apk shiye-ios-unsigned.ipa shiye-web.zip > SHA256SUMS.txt
+          sha256sum shiye-android.apk shiye-ios-unsigned.ipa shiye-windows-x64.zip shiye-web.zip > SHA256SUMS.txt
           cat > RELEASE_NOTES.md <<'NOTES'
           拾页：网站式小说书城、三站分区榜单、封面、搜索、本机下载与离线阅读。
 
+          - Windows：下载 shiye-windows-x64.zip，解压整个文件夹，双击 拾页.exe。无需安装 Node、Python 或代理软件。
           - 安卓：下载 shiye-android.apk 后安装。预览构建使用临时调试签名，升级前请备份书库。
           - iPhone / iPad：下载 shiye-ios-unsigned.ipa 后自行签名安装。该文件为真实 iOS 设备编译的未签名 IPA，不能仅凭 Safari 下载就直接安装。
           - 应用运行时直接连接书源，不依赖电脑或电脑上的 Python 服务。
@@ -138,4 +171,4 @@ jobs:
 
           构建成功不等于已完成真机安装及各书源联网下载验证。
           NOTES
-          gh release create "mobile-v1.0.0-${{ github.run_number }}" shiye-android.apk shiye-ios-unsigned.ipa shiye-web.zip SHA256SUMS.txt --title '拾页 1.0 · 手机独立版' --notes-file RELEASE_NOTES.md --latest
+          gh release create "mobile-v1.0.0-${{ github.run_number }}" shiye-android.apk shiye-ios-unsigned.ipa shiye-windows-x64.zip shiye-web.zip SHA256SUMS.txt --title '拾页 1.0 · 手机与 Windows 本机版' --notes-file RELEASE_NOTES.md --latest

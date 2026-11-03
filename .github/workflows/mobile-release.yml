@@ -31,6 +31,8 @@ jobs:
       - run: npm ci --registry=https://registry.npmjs.org
       - name: Search and retrieve sample chapters without proxy software
         run: node scripts/check-direct-sources.mjs
+      - name: Verify recommendation bodies before exposing books
+        run: node scripts/check-verified-feed.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -38,6 +40,7 @@ jobs:
           path: |
             mobile/.reports/direct-sources.json
             mobile/.reports/discovery.json
+            mobile/.reports/verified-feed.json
 
   android:
     runs-on: ubuntu-latest
@@ -161,17 +164,20 @@ jobs:
           cd release
           sha256sum shiye-android.apk shiye-ios-unsigned.ipa shiye-windows-x64.zip shiye-web.zip > SHA256SUMS.txt
           cat > RELEASE_NOTES.md <<'NOTES'
-          拾页：分类发现、持续推荐和本地阅读。
+          拾页：新版书城界面、趣味加载动画与先检验再推荐。
 
           - Windows：全部解压 shiye-windows-x64.zip，双击 拾页.exe；无需另装运行环境。
           - Android：安装 shiye-android.apk。更新预览版前先备份书库，签名不同可能需要重装。
           - iPhone / iPad：shiye-ios-unsigned.ipa 为未签名包，需自行签名安装。
           - 三种翻页：仿真纸张卷曲、左右整页滑动、上下连续滚动；切换后保留阅读位置。
           - 推荐向下自动追加，新增男女频和常见题材分类，缺失封面显示书名书封。
+          - 首页书目先读取目录、实测首中末章；失败不推荐，下载前再次复查。
+          - 查源、下载、搜索、加载新书和打开阅读器使用统一旋转变形动画，显示真实进度。
+          - Windows 程序、窗口与手机应用使用统一拾页书本图标。
           - 支持 TXT 导入导出、背景、字号、行距、进度恢复和书库备份。
           - 原生应用直接连接书源，运行不依赖电脑服务或代理软件。
           - 网页构建 shiye-web.zip 的联网检索需要配套网页服务。
 
           使用说明：https://github.com/yifanchen12/shiye#readme
           NOTES
-          gh release create "shiye-v1.0.0-${{ github.run_number }}" shiye-android.apk shiye-ios-unsigned.ipa shiye-windows-x64.zip shiye-web.zip SHA256SUMS.txt --title '拾页 · 分类书城与三种翻页' --notes-file RELEASE_NOTES.md --latest
+          gh release create "shiye-v1.0.0-${{ github.run_number }}" shiye-android.apk shiye-ios-unsigned.ipa shiye-windows-x64.zip shiye-web.zip SHA256SUMS.txt --title '拾页 · 新版书城与正文核验' --notes-file RELEASE_NOTES.md --latest

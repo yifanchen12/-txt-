@@ -8,6 +8,7 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const origin='shiye://library';
 protocol.registerSchemesAsPrivileged([{scheme:'shiye',privileges:{standard:true,secure:true,supportFetchAPI:true,stream:true}}]);
 app.setName('拾页');
+if(process.platform==='win32')app.setAppUserModelId('com.shiye.reader');
 // Keep the library origin and data directory stable across portable upgrades.
 const libraryPath=path.join(app.getPath('appData'),'ShiyeReader');
 await mkdir(libraryPath,{recursive:true});
@@ -32,7 +33,7 @@ ipcMain.handle('shiye:request',async(event,payload)=>{
   }catch(error){return {status:502,headers:{'x-shiye-error':'network'},data:Buffer.from(proxyErrorMessage(error)).toString('base64')};}
 });
 function open(){
-  window=new BrowserWindow({width:1260,height:860,minWidth:760,minHeight:600,title:'拾页',backgroundColor:'#f8f6f0',autoHideMenuBar:true,show:false,webPreferences:{preload:path.join(root,'desktop','preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
+  window=new BrowserWindow({width:1380,height:900,minWidth:760,minHeight:600,title:'拾页',icon:path.join(root,'dist','app-icon.png'),backgroundColor:'#f4f6f5',autoHideMenuBar:true,show:false,webPreferences:{preload:path.join(root,'desktop','preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
   window.webContents.setWindowOpenHandler(({url})=>{external(url);return {action:'deny'};});
   window.webContents.on('will-navigate',(event,url)=>{if(!url.startsWith(origin+'/')){event.preventDefault();external(url);}});
   window.webContents.session.setPermissionRequestHandler((_contents,_permission,callback)=>callback(false));

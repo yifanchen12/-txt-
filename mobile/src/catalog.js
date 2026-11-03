@@ -146,8 +146,8 @@ export async function resolveBook(wanted,signal,available) {
     try {
       const results=await searchSource(s,wanted.title,signal,{limit:3});
       for(const b of results)if(sameBook(wanted,b)&&completed(b)){
-        const prepared=await prepareDownload(b,signal);
-        if(prepared)return {...b,...wanted,source:b.source,sourceType:b.sourceType,sourceConfig:s,prepared,cover:wanted.cover||b.cover,availability:'matched'};
+        const verified=await verifyDownload(b,{signal});
+        if(verified)return {...b,...wanted,source:b.source,sourceType:b.sourceType,sourceConfig:s,prepared:verified.prepared,verification:verified.verification,cover:wanted.cover||b.cover,availability:'matched'};
       }
     }catch{assertNotAborted(signal);}
   }
@@ -155,7 +155,7 @@ export async function resolveBook(wanted,signal,available) {
 }
 export async function loadRanking(platform,{signal,onUpdate=()=>{}}={}) {
   const cached=await getCache(`rank-${platform}`);
-  if(cached?.books?.length)onUpdate({...cached,stale:true});
+  if(cached?.books?.length)onUpdate({...cached,books:[],stale:true});
   let raw,time=Date.now(),stale=false,notice='';const books=[];
   try{raw=await officialBooks(platform,signal);}catch(error){
     assertNotAborted(signal);
@@ -204,8 +204,8 @@ export async function prepareDownload(book,signal) {
       for(let page=2;page<=last;page++)append(documentOf(await text(base+page+template.match[3],{signal})));
     }
     if(chapters.length<(s.min_chapters||20))return null;
-    await chapterText(chapters[0],s,signal);
-    return {kind:'chapters',chapters};
+    const firstBody=await chapterText(chapters[0],s,signal);
+    return {kind:'chapters',chapters,firstChapterLength:firstBody.trim().length};
   }
   const {book:parsed,doc}=parseSourceDetail(await text(book.detailUrl,{signal}),book.detailUrl,s,book);
   let url=parsed.downloadUrl;
@@ -231,6 +231,7 @@ async function chapterText(chapter,source,signal) {
     const lines=plain(node).split('\n').filter(line=>!/^第\(\d+\/\d+\)页/.test(line)&&!(source.skip_ad_keywords||['请收藏','最新网址','最新网址','加入书签']).some(k=>line.toLowerCase().includes(k.toLowerCase())));
     const content=lines.join('\n\n').trim();
     if(!content||/转码失败|章节不存在|内容已删除|源站不可用/.test(content)||(/请(?:先)?订阅|购买本章|付费阅读/.test(content)&&content.length<600))throw new Error(`“${chapter.title}”没有可用正文`);
+    if(content.length<600&&/登录后(?:继续|阅读)|请先登录|请输入验证码|完成人机验证|访问验证|Access Denied/i.test(content))throw new Error(`“${chapter.title}”返回了登录或验证提示`);
     parts.push(content);
     const current=new URL(url),base=current.pathname.replace(/(?:_\d+)?\.html$/, '');
     const pageNumber=Number(current.pathname.match(/_(\d+)\.html$/)?.[1]||1);
@@ -243,15 +244,37 @@ async function chapterText(chapter,source,signal) {
   }
   return parts.join('\n\n');
 }
-export async function downloadBook(book,{signal,onProgress=()=>{},fallbacks=[]}={}) {
-  const prepared=book.prepared||await prepareDownload(book,signal);
+function checkedFile(bytes) {
+  const content=decodeText(bytes);
+  if(/<(?:!doctype|html|head|body)[\s>]/i.test(content.slice(0,600)))throw new Error('下载链接返回了网页，未作为小说保存');
+  if(content.trim().length<1000)throw new Error('正文文件过短，请更换书源');
+  return content;
+}
+// A listing or a download link alone is not evidence that the body is available.
+export async function verifyDownload(book,{signal}={}) {
+  const prepared=await prepareDownload(book,signal);
+  if(!prepared)throw new Error('没有可用的下载入口');
+  let samples;
+  if(prepared.kind==='chapters'){
+    samples=[...new Set([0,Math.floor(prepared.chapters.length/2),prepared.chapters.length-1])];
+    if(prepared.firstChapterLength<200)throw new Error('首章正文过短，暂不作为推荐');
+    // prepareDownload already reads the first chapter, including all its pages.
+    for(const index of samples.filter(i=>i!==0))if((await chapterText(prepared.chapters[index],book.sourceConfig,signal)).trim().length<200)throw new Error('抽样章节正文过短，暂不作为推荐');
+  }else{
+    checkedFile((await request(prepared.url,{signal,timeout:60000})).bytes);
+    samples=[];
+  }
+  assertNotAborted(signal);
+  return {...book,prepared,verification:{checkedAt:Date.now(),kind:prepared.kind,samples:samples.length,chapters:prepared.chapters?.length||0}};
+}
+export async function downloadBook(book,{signal,onProgress=()=>{},fallbacks=[],recheck=false}={}) {
+  // Re-resolve before a new download; a previous successful check can become stale.
+  const prepared=recheck?await prepareDownload(book,signal):book.prepared||await prepareDownload(book,signal);
   if(!prepared)throw new Error('未找到可直接下载的正文，请更换书源');
   let content='';const usedSources=new Set(book.source?[book.source]:[]);
   if(prepared.kind==='file'){
     onProgress({done:0,total:1,label:'正在下载正文'});
-    const r=await request(prepared.url,{signal,timeout:60000});content=decodeText(r.bytes);
-    if(/<(?:!doctype|html|head|body)[\s>]/i.test(content.slice(0,600)))throw new Error('下载链接返回了网页，未作为小说保存');
-    if(content.trim().length<1000)throw new Error('正文文件过短，请更换书源');
+    const r=await request(prepared.url,{signal,timeout:60000});content=checkedFile(r.bytes);
     onProgress({done:1,total:1,label:'正文已下载'});
   }else{
     const parts=new Array(prepared.chapters.length);let done=0;

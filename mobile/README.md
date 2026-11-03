@@ -45,7 +45,22 @@ npx cap add ios
 node scripts/prepare-native.mjs
 ```
 
-GitHub Actions 在 Windows、Linux、macOS 分别打包 Windows ZIP、安卓 APK、真实 iPhone 设备构建的未签名 IPA，随后发布 Releases。iOS 签名材料不进入仓库。
+GitHub Actions 在 Windows、Linux、macOS 分别打包 Windows ZIP、安卓 APK、真实 iPhone 设备构建的未签名 IPA，随后发布 Releases。**未签名 IPA 不能直接安装**；CI 编译成功不等于真机测试成功。iOS 签名材料不进入仓库。
+
+### Mac mini 本地签名和 iPhone 17e 安装
+
+先安装 Xcode 26.0 或更新版本，在 Xcode → Settings → Accounts 中登录 Apple ID。iPhone 连接 Mac、信任电脑，并在系统设置中开启开发者模式。
+
+```sh
+cd mobile
+npm ci
+npm run ios:device -- setup    # 首次录入 Team ID、设备 ID、Bundle ID
+npm run ios:device -- install  # 自动构建、开发签名、安装
+```
+
+后续拉取代码更新后，执行 `npm run ios:device -- install` 即可。只构建不安装使用 `npm run ios:device -- build`。首次录入的本地参数保存在被 Git 忽略的 `.ios-device.env`；也支持 `APPLE_TEAM_ID`、`IOS_DEVICE_ID`、`IOS_BUNDLE_ID` 环境变量覆盖。脚本支持 Swift Package Manager `.xcodeproj` 和 CocoaPods `.xcworkspace`。
+
+详见 [Mac mini iOS 签名、设备信任、故障排查及四项真机验收](docs/ios-device-install.md)。
 
 联网检查：
 

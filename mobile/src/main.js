@@ -74,8 +74,10 @@ function rankingBoard(platform,full=false){
 function rankings(){return `<section class="page-title"><div class="eyebrow">WHAT'S BEING READ</div><h1>排行榜<span>.</span></h1><p>官方热度，有据可循。只收录已匹配到正文的完本作品。</p></section><div class="tab-row">${[['all','全部榜单'],...Object.entries(PLATFORMS).map(([k,v])=>[k,v.name])].map(([k,v])=>`<button data-platform="${k}" class="tab ${state.platform===k?'selected':''}">${v}</button>`).join('')}<button class="text-button push-right" data-action="refresh">${rankLoading?'停止刷新':'刷新'} ↻</button></div><div class="ranking-grid ${state.platform!=='all'?'single-ranking':''}">${(state.platform==='all'?Object.keys(PLATFORMS):[state.platform]).map(p=>rankingBoard(p,true)).join('')}</div>`;}
 function bookCard(b){const local=state.library.some(x=>x.id===b.id),platform=PLATFORMS[b.platform]?.name;return `<article class="book-card" data-card-id="${h(b.id)}"><button class="cover-button" data-book="${h(remember(b))}">${cover(b)}<span class="cover-action">${local?'继续阅读':'查看这本书'} ${icon('arrow')}</span></button><button class="book-title" data-book="${h(b.id)}">${h(b.title)}</button><p class="book-author">${h(b.author||'作者未知')}</p><div class="book-tags">${platform?`<span>${platform}</span>`:''}<span>${h(b.genre||'小说')}</span>${local?'<span class="saved-tag">已保存</span>':''}</div></article>`;}
 function recommendationBooks(){
-  const map=new Map(state.recommendations.map(b=>[b.id,b]));
+  const readable=b=>!/[\ue000-\uf8ff]/u.test(`${b.title||''}${b.author||''}`);
+  const map=new Map(state.recommendations.filter(readable).map(b=>[b.id,b]));
   for(const book of [...Object.values(state.ranks).flatMap(r=>r.books||[]),...state.search,...Object.values(state.ranks).flatMap(r=>r.raw||[])]){
+    if(!readable(book))continue;
     const previous=map.get(book.id);map.set(book.id,previous?{...previous,...book,cover:book.cover||previous.cover,genre:(previous.genre||'').length>(book.genre||'').length?previous.genre:book.genre}:book);
   }
   state.recommendations=[...map.values()];return state.recommendations.filter(b=>matchesCategory(b,discovery));
